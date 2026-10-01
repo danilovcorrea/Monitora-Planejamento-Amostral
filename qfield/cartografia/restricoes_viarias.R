@@ -6,6 +6,13 @@ mq_protocol <- function(c) {
     c$distancias_viarias_m<-c(estradas_pavimentadas=100,estradas_terra=50,trilhas_preexistentes=5)
   } else {
     p<-c$parametros_protocolo
+    if(c$perfil=='ilha'){
+      if(!is.list(c$padrao_ilha))mq_stop('padrao_ilha exige lista de parâmetros.')
+      if(!is.null(p)&&!is.list(p))mq_stop('parametros_protocolo exige lista.')
+      p<-utils::modifyList(c$padrao_ilha,if(is.null(p))list()else p,keep.null=TRUE)
+      if(length(p$distancia_referencia_m)!=1||!is.numeric(p$distancia_referencia_m)||!is.finite(p$distancia_referencia_m)||p$distancia_referencia_m<=0||!length(p$direcoes_referencia)||any(!p$direcoes_referencia%in%c('N','L','S','O')))mq_stop('Referência Ilha inválida.')
+      c$referencia_ilha<-c(p,list(fonte='Projeto piloto Noronha, setembro/2026',natureza='parâmetros experimentais; não substituem validação de campo'))
+    }
     if(!is.list(p)||!all(c('transecto_m','grade_m')%in%names(p)))mq_stop('Perfil ',c$perfil,': informe parametros_protocolo com transecto_m e grade_m; padrões campestres não são herdados.')
     c$transecto_m<-p$transecto_m;c$grade_m<-p$grade_m
     c$distancia_min_m<-NA_real_;c$deslocamento_max_m<-NA_real_

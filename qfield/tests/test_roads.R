@@ -25,7 +25,7 @@ for(role in c('estradas_terra','trilhas_preexistentes')) {
  zz<-mq_road_screen(p,mq_road_sources(list(l),c,r),ae,c,r);ok(paste0(role,'_limiar_exato'),zz$mq_viavel_vias)
  st_geometry(p)<-st_sfc(st_point(c(500000+gap-.1,8000000)),crs=cr);zz<-mq_road_screen(p,mq_road_sources(list(l),c,r),ae,c,r);ok(paste0(role,'_inferior_bloqueia'),!zz$mq_viavel_vias)
 }
-ci<-MQ_CONFIG;ci$perfil<-'ilha';ok('ilha_exige_parametros',fails(mq_protocol(ci)));ci$parametros_protocolo<-list(transecto_m=25,grade_m=c(30,30));ci<-mq_protocol(ci);mq_validate_config(ci)
+ci<-MQ_CONFIG;ci$perfil<-'ilha';ok('ilha_padrao_piloto',mq_protocol(ci)$transecto_m==25&&all(mq_protocol(ci)$grade_m==30));ci$parametros_protocolo<-list(transecto_m=25,grade_m=c(30,30));ci<-mq_protocol(ci);mq_validate_config(ci)
 ok('ilha_nao_herda_regras',length(ci$direcoes_campo)==0&&length(ci$distancias_viarias_m)==0&&is.na(ci$distancia_min_m)&&ci$transecto_m==25)
 ok('ilha_vias_so_visuais',length(mq_road_sources(list(layer),ci,r))==0)
 mq_diagnostics(g,list(layer),ae,ci,r);ok('ilha_sem_diagnostico_campestre',file.exists(file.path(r,'procedimento_campo_nao_aplicado.txt'))&&!file.exists(file.path(r,'simulacoes_direcoes.csv')))

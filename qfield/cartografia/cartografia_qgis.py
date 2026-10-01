@@ -168,7 +168,11 @@ def build(config_file):
  states,biomes,ae_marker,state_extent,palette=locator_layers(project,out,aes,crs)
  uc_locator=None
  if uc:
-  uc_locator=uc.clone();uc_locator.setName(uc.name()+' — localizador');uc_locator.setCustomProperty('monitora_contexto',True);project.addMapLayer(uc_locator,False);project.layerTreeRoot().findGroup('Contexto dos localizadores').addLayer(uc_locator)
+  uc_context=root/'02_relatorio/contexto_uc.gpkg'
+  if uc_context.exists():
+   dest=out/'contexto/limites_uc_contexto.gpkg';shutil.copy2(uc_context,dest);uc_locator=QgsVectorLayer(str(dest),'UC contexto','ogr');assert uc_locator.isValid();uc_locator.setRenderer(uc.renderer().clone())
+  else:uc_locator=uc.clone()
+  uc_locator.setName(uc.name()+' — localizador');uc_locator.setCustomProperty('monitora_contexto',True);project.addMapLayer(uc_locator,False);project.layerTreeRoot().findGroup('Contexto dos localizadores').addLayer(uc_locator)
 
  for v in aes+[uc,grid]:
   if v:v.setLabelsEnabled(False)
@@ -228,7 +232,7 @@ def build(config_file):
    loc=QgsLayoutItemMap(layout);layout.addLayoutItem(loc);loc.setId(name+'_localizador_uc');loc.attemptMove(QgsLayoutPoint(ux+2,fy+7*factor));loc.attemptResize(QgsLayoutSize(uw-4,46*factor));loc.setCrs(crs);loc.setLayers(aes+[uc_locator,regional]);loc.setKeepLayerSet(True);local_styles={}
    for v in aes+[uc_locator,regional]:
     style=QgsMapLayerStyle();style.readFromLayer(v);local_styles[v.id()]=style.xmlData()
-   loc.setLayerStyleOverrides(local_styles);loc.setKeepLayerStyles(True);loc.zoomToExtent(extent_of(uc,ae_extent));loc.overview().setLinkedMap(m);loc.overview().setEnabled(True);loc.setFrameEnabled(True)
+   loc.setLayerStyleOverrides(local_styles);loc.setKeepLayerStyles(True);loc.zoomToExtent(extent_of(uc_locator,ae_extent));loc.overview().setLinkedMap(m);loc.overview().setEnabled(True);loc.setFrameEnabled(True)
   lx,lw=slots[-3];ix,iw=slots[-2];gx,gw=slots[-1]
   legend=QgsLayoutItemLegend(layout);legend.setId(name+'_legenda');legend.setTitle('Legenda');legend.setLinkedMap(m);legend.setAutoUpdateModel(False);legend.model().rootGroup().clear();legend.setWrapString('\n')
   legend_names=[];ae_added=False
@@ -238,10 +242,13 @@ def build(config_file):
     ae_added=True;title_legend='Áreas Elegíveis'
    else:title_legend=v.name()
    node=legend.model().rootGroup().addLayer(v);node.setName(textwrap.fill(title_legend,width=max(22,int((lw-9)/1.05))));legend_names.append(title_legend)
-   if v==uc and len(uc_names)>1:QgsLegendRenderer.setNodeLegendStyle(node,QgsLegendStyle.Hidden)
+   if v==uc and len(uc_names)>1:
+    QgsLegendRenderer.setNodeLegendStyle(node,QgsLegendStyle.Hidden)
+    for j,uc_name in enumerate(uc_names):QgsMapLayerLegendUtils.setLegendNodeUserLabel(node,j,textwrap.fill(uc_name,width=max(18,int((lw-12)/1.6))))
+    legend.model().refreshLayerLegend(node)
   legend.setStyleFont(QgsLegendStyle.Title,QFont('Arial',8,QFont.Bold));legend.setStyleFont(QgsLegendStyle.SymbolLabel,QFont('Arial',7));layout.addLayoutItem(legend);legend.attemptMove(QgsLayoutPoint(lx+1,fy+1));legend.attemptResize(QgsLayoutSize(lw-2,fh-2));legend.setResizeToContents(False)
   note=f"{crs.authid()} · escala 1:{round(m.scale()):,}".replace(',','.')
-  info=note+'\nAEs e pontos: dados fornecidos.\n'+('UCs federais: ICMBio.\n' if uc else '')+'Estados e biomas: IBGE, 2025.\nSentinel-2 L2A · RGB nativo 10 m.\nDatas: '+(date_label or 'não informadas')+'.\nCopernicus Sentinel / AWS Earth Search.'+detail_info+'\nPA: local planejado; não é UA instalada.\nElaboração: '+cfg['elaboracao']+'\n'+datetime.date.today().isoformat()+' · Monitora QField v0.4.5\nFontes e métodos: 02_relatorio.'
+  info=note+'\nAEs e pontos: dados fornecidos.\n'+('UCs federais: ICMBio.\n' if uc else '')+'Estados e biomas: IBGE, 2025.\nSentinel-2 L2A · RGB nativo 10 m.\nDatas: '+(date_label or 'não informadas')+'.\nCopernicus Sentinel / AWS Earth Search.'+detail_info+'\nPA: local planejado; não é UA instalada.\nElaboração: '+cfg['elaboracao']+'\n'+datetime.date.today().isoformat()+' · Monitora QField v0.4.6\nFontes e métodos: 02_relatorio.'
   label(layout,'Informações do mapa',ix+1,fy+1,iw-2,5,7,True);label(layout,info,ix+1.5,fy+7,iw-3,fh-8,6 if detail is not None else 6.5)
   for j,n in enumerate(['monitora','cbc','icmbio']):
    im=QgsLayoutItemPicture(layout);im.setId(name+'_logo_'+n);layout.addLayoutItem(im);im.attemptMove(QgsLayoutPoint(gx+1.5,fy+(2+j*18)*factor));im.attemptResize(QgsLayoutSize(gw-3,15*factor));im.setPicturePath(str(assets/f'logo_{n}.png'));im.setPictureAnchor(QgsLayoutItemPicture.Middle)

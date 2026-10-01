@@ -75,7 +75,8 @@ mq_pa_aliases <- function(layers,report) {
   rows<-list();cmp_crs<-sf::st_crs(layers[[ids[1]]]$x);if(isTRUE(cmp_crs$IsGeographic))cmp_crs<-sf::st_crs(3857)
   for(i in ids){l<-layers[[i]];x<-l$x;if(!nrow(x))next
     geom<-sf::st_as_binary(sf::st_geometry(x));original<-if(l$label=='codigo_pa'&&'PA'%in%names(x))as.character(x$PA)else if(nzchar(l$label))as.character(x[[l$label]])else rep('',nrow(x))
-    key<-if('chave_grade'%in%names(x))as.character(x$chave_grade)else paste(original,vapply(geom,digest::digest,character(1),algo='sha256'),sep=':')
+    key<-paste(original,vapply(geom,digest::digest,character(1),algo='sha256'),sep=':')
+    for(field in c('grid_id','chave_grade'))if(field%in%names(x)){value<-as.character(x[[field]]);valid<-!is.na(value)&nzchar(trimws(value));key[valid]<-if(field=='grid_id')paste0('grid_id:',value[valid])else value[valid]}
     code<-if('codigo_pa'%in%names(x))as.character(x$codigo_pa)else ifelse(grepl('^PA[0-9]{5,}$',original),original,NA_character_)
     previous<-code;code[is.na(code)|!grepl('^PA[0-9]{5,}$',code)]<-NA_character_;xy<-sf::st_coordinates(sf::st_transform(x,cmp_crs))
     rows[[length(rows)+1]]<-data.frame(i=i,row=seq_len(nrow(x)),chave=key,original=original,codigo_anterior=previous,codigo=code,x=xy[,1],y=xy[,2])
@@ -94,7 +95,7 @@ mq_entry <- function(root,c,mode,status) {
   e<-monitora_qfield_xml
   links<-c('01_qfield/pacote_qfield.zip'='Projeto para QField','01_qfield/projeto.qgs'='Projeto de navegação no QGIS','02_relatorio/relatorio_execucao.html'='Relatório de execução','03_vetores'='Vetores GPKG, KML e KMZ','04_csv'='Tabelas CSV')
   if(c$gerar_cartografia)links<-c(links,'05_qgis/projeto_edicao.qgz'='Projeto QGIS editável e quatro layouts','mapas_pdf'='Quatro mapas PDF georreferenciados','mapas_png'='Quatro mapas PNG')
-  writeLines(c('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Monitora — entrega</title><style>body{font:18px/1.6 sans-serif;max-width:900px;margin:40px auto;padding:20px;color:#174b3b}</style>',paste0('<h1>',e(c$projeto),'</h1><p>v0.4.5 · ',e(mode),' · ',e(status),'</p><ul>'),paste0('<li><a href="',names(links),'">',links,'</a></li>'),'</ul><p>Edite os vetores em 05_qgis. Essas alterações não modificam o pacote QField, os CSV/KML ou mapas já exportados. Reexporte os layouts após editar. Preserve a pasta completa para manter as imagens compartilhadas e os caminhos relativos.</p></html>'),file.path(root,'ABRA_AQUI.html'))
+  writeLines(c('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Monitora — entrega</title><style>body{font:18px/1.6 sans-serif;max-width:900px;margin:40px auto;padding:20px;color:#174b3b}</style>',paste0('<h1>',e(c$projeto),'</h1><p>v0.4.6 · ',e(mode),' · ',e(status),'</p><ul>'),paste0('<li><a href="',names(links),'">',links,'</a></li>'),'</ul><p>Edite os vetores em 05_qgis. Essas alterações não modificam o pacote QField, os CSV/KML ou mapas já exportados. Reexporte os layouts após editar. Preserve a pasta completa para manter as imagens compartilhadas e os caminhos relativos.</p></html>'),file.path(root,'ABRA_AQUI.html'))
 }
 # Composição source-over: a primeira fonte local prevalece; transparências são preenchidas.
 mq_alpha_over <- function(front,back) {
@@ -244,4 +245,19 @@ mq_cartography <- function(layers,ras,ae,c,root,scratch) {
   config<-file.path(scratch,'cartografia.json');mq_json(list(root=project_root,projeto=c$projeto,bioma_min_mm2=c$localizador_bioma_min_mm2,dpi=c$mapas_dpi,papel=c$mapas_papel,elaboracao=c$elaboracao,camadas=lapply(layers,function(l)list(nome=l$nome,papel=l$papel))),config)
   mq_qgis_call(c$qgis_runtime,file.path(scratch,'cartografia_qgis.py'),'build',config,file.path(root,'02_relatorio','qgis_cartografia.log'))
   evidence<-jsonlite::read_json(file.path(root,'02_relatorio/cartografia.json'));if(evidence$status!='PASS'||length(evidence$mapas)!=4)mq_stop('Cartografia não validada.')
+}
+
+# Contexto regional por componentes completos: preserva UC oficial e origem da grade.
+mq_uc_image_parts <- function(ae,layers,c,report) {
+  sources<-Filter(function(l)l$papel=='limites_uc',layers);pieces<-list();audit<-list()
+  for(l in sources) {
+    x<-sf::st_transform(l$x,sf::st_crs(ae));parts<-suppressWarnings(sf::st_cast(x,'POLYGON'));hit<-lengths(sf::st_intersects(parts,ae))>0
+    keep<-if(c$contexto_uc=='integral')rep(TRUE,nrow(parts))else hit
+    audit[[length(audit)+1L]]<-list(camada=l$nome,componentes=nrow(parts),com_AE=sum(hit),incluidos=sum(keep),remotos_omitidos=sum(!keep))
+    if(any(keep)){x<-parts[keep,];pieces[[length(pieces)+1L]]<-sf::st_sf(cnuc=if('cnuc'%in%names(x))as.character(x$cnuc)else rep(l$nome,nrow(x)),nomeuc=if('nomeuc'%in%names(x))as.character(x$nomeuc)else rep(l$nome,nrow(x)),geometry=sf::st_geometry(x))}
+  }
+  result<-if(length(pieces))do.call(rbind,pieces)else mq_empty(sf::st_crs(ae))
+  mq_json(list(regra=c$contexto_uc,camadas=audit,nota='Componentes inteiros; nenhum corte por raio de 500 m. Limites oficiais e origem da grade preservados.'),file.path(report,'contexto_uc.json'))
+  if(nrow(result))sf::st_write(result,file.path(report,'contexto_uc.gpkg'),quiet=TRUE)
+  result
 }
