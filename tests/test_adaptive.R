@@ -1,4 +1,4 @@
-options(monitora.qfield.somente_funcoes=TRUE);source('qfield/monitora_criar_qfield.R',encoding='UTF-8');suppressPackageStartupMessages(library(sf))
+options(monitora.qfield.somente_funcoes=TRUE);source('monitora_planejamento_amostral.R',encoding='UTF-8');suppressPackageStartupMessages(library(sf))
 r<-tempfile();dir.create(r);tests<-0L;ok<-function(n,v){if(!isTRUE(v))stop(n);tests<<-tests+1L;cat('PASS',n,'\n')};fails<-function(x)inherits(try(force(x),silent=TRUE),'try-error')
 grid<-function(codes){n<-length(codes);st_as_sf(data.frame(id_grade=seq_len(n),chave_grade=paste0('g',seq_len(n)),categoria='grade',mb_codigo=codes,x=seq_len(n)*100,y=8000000),coords=c('x','y'),crs=31983)}
 run<-function(codes,c=MQ_CONFIG){g<-mq_design_classify(grid(codes),list(),c,r);mq_design_select(g,c,r)}

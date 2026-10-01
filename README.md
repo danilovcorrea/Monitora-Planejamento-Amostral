@@ -1,8 +1,16 @@
-# Monitora — criação independente de projetos QField
+# Monitora Campestre Savânico - Alvo Global - Planejamento e Desenho Amostral, Cartografia e navegação em campo
 
-Script `monitora_criar_qfield.R`, versão 0.4.7. Execute em R/RStudio; não é necessário carregar o script biológico do Monitora. QGIS/PyQGIS é necessário para gerar o projeto de edição, os quatro layouts e mapas PDF/PNG (habilitados por padrão). Consulte `HOMOLOGACAO.md` para o alcance e as limitações da validação.
+**Versão 1.0.0 · script R independente · Programa Monitora**
 
-Consulte o manual pronto: [HTML](manual/manual_qfield_v0.4.7.html) · [PDF](manual/manual_qfield_v0.4.7.pdf). Ambos são arquivos versionados para disponibilização junto ao script no GitHub, sem executar R para gerar o manual.
+Ferramenta para planejar o desenho amostral a partir de Áreas Elegíveis, organizar dados espaciais, criar projetos editáveis no QGIS e projetos de navegação no QField, e exportar mapas, vetores, tabelas e relatórios. Inclui os perfis Campestre-Savânico, Ilha e personalizado, com seus critérios próprios.
+
+**[Ler o manual do usuário em HTML](https://danilovcorrea.github.io/Monitora-Planejamento-Amostral/)** · **[Baixar o manual em PDF](https://danilovcorrea.github.io/Monitora-Planejamento-Amostral/manual_usuario.pdf)**
+
+**[Baixar o script R](https://github.com/danilovcorrea/Monitora-Planejamento-Amostral/releases/latest/download/monitora_planejamento_amostral.R)** · [Versão completa e arquivos de verificação](https://github.com/danilovcorrea/Monitora-Planejamento-Amostral/releases/latest)
+
+O manual já está pronto para consulta; não é necessário executar R. O script distribuído é autossuficiente e incorpora os auxiliares cartográficos e recursos. Requer os pacotes R indicados abaixo e QGIS/PyQGIS para gerar os layouts e mapas. A instalação efetiva de UAs depende da avaliação em campo e dos protocolos aplicáveis.
+
+Esta ferramenta deriva da versão homologada 0.4.7 do módulo independente desenvolvido no [Monitora-Campestre-Savanico](https://github.com/danilovcorrea/Monitora-Campestre-Savanico). Este é o repositório canônico do planejamento; o repositório original mantém o tratamento e as análises dos dados biológicos. Consulte [homologação](HOMOLOGACAO.md) e [proveniência](validacao/proveniencia.json).
 
 ## Início
 
@@ -13,7 +21,7 @@ Consulte o manual pronto: [HTML](manual/manual_qfield_v0.4.7.html) · [PDF](manu
 5. Abra o script no RStudio e use **Source**. A conexão à internet é necessária para a consulta oficial às UCs federais. O MapBiomas também usa internet quando ativado.
 6. Consulte o relatório. Importe `01_qfield/pacote_qfield.zip` em uma pasta nova do QField e confira em modo avião.
 
-Para usar como biblioteca: `options(monitora.qfield.somente_funcoes=TRUE)` antes de `source()`, e depois `monitora_criar_qfield(config)`. O script não instala pacotes, envia dados ou publica projetos automaticamente.
+Para usar como biblioteca: `options(monitora.qfield.somente_funcoes=TRUE)` antes de `source()`, e depois `monitora_planejamento_amostral(config)` (o nome anterior `monitora_criar_qfield` permanece como alias compatível). O script não instala pacotes, envia dados ou publica projetos automaticamente.
 
 ## Parâmetros
 
@@ -35,7 +43,7 @@ Para usar como biblioteca: `options(monitora.qfield.somente_funcoes=TRUE)` antes
 | `referencia_anterior` | Pasta `02_relatorio` anterior, obrigatória em `expandir` |
 | `max_pontos` | 500000; proteção de volume, sem redução silenciosa |
 
-Informe número **ou** percentual, nunca ambos. Exemplo: `list(n=40,percentual=NULL)`. Percentuais são arredondados para cima, sobre todos os vértices únicos cobertos pela união das AEs (incluindo fronteiras e excluindo interiores de buracos). Cotas inviáveis interrompem a execução; não são reduzidas. Zero explícito é permitido.
+Informe número **ou** percentual, nunca ambos. Exemplo: `list(n=40,percentual=NULL)`. Percentuais são arredondados para cima, sobre todos os vértices únicos cobertos pela união das AEs (incluindo fronteiras e excluindo interiores de buracos). O padrão `politica_insuficiencia="usar_disponiveis"` adapta os quantitativos à capacidade e registra déficits. A opção `"bloquear"` exige o atendimento estrito das cotas. Zero explícito é permitido.
 
 `auto` escolhe `montar` se encontrar grade, PAs, UAs, extremos ou transectos fornecidos. `montar` não cria pontos nem completa cotas. `planejar` rejeita essas camadas para impedir substituição acidental. Para adicionar UAs observadas a um planejamento gerado, faça uma montagem posterior com as camadas resultantes e as referências observadas.
 
@@ -90,7 +98,7 @@ O serviço WFS federal é consultado em toda execução. As páginas e contagens
 
 PA = início previsto. O roteiro de 29/04/2026 orienta tentar Norte, Leste, Sul e Oeste, com ajuste de até 10 m quando necessário; instalação inviável leva ao alternativo mais próximo. A simulação usa norte geográfico local e comprimento métrico, sem deslocar o PA. Não afirma que ocorreu instalação.
 
-Os mínimos se aplicam a todo o segmento: floresta e rodovia 100 m; estrada de terra 50 m; trilha 5 m; outra UA conforme `distancia_min_m`. Diagnósticos usam somente geometrias fornecidas e não transformam ausência de camada em ausência de obstáculo. MapBiomas não prova distâncias a floresta nem homogeneidade da transecção. Mudança de formação, obstáculos e relevo precisam ser avaliados em campo. As simulações não excluem vértices, não alteram cotas e não tratam todos os alternativos como UAs simultâneas. Acima de 20 mil PAs as simulações são explicitamente não executadas; a grade continua íntegra.
+Os mínimos se aplicam a todo o segmento: floresta e rodovia 100 m; estrada de terra 50 m; trilha 5 m; outra UA conforme `distancia_min_m`. Diagnósticos usam somente geometrias fornecidas e não transformam ausência de camada em ausência de obstáculo. MapBiomas não prova distâncias a floresta nem homogeneidade da transecção. Mudança de formação, obstáculos e relevo precisam ser avaliados em campo. Os diagnósticos posteriores à seleção não alteram cotas nem tratam todos os alternativos como UAs simultâneas. As restrições viárias habilitadas são aplicadas antes da seleção e reduzem os candidatos aptos; a grade e o denominador são preservados. Acima de 20 mil PAs as simulações são explicitamente não executadas; a grade continua íntegra.
 
 `alternativos_proximos.csv` usa distância plana do PA prioritário ao PA alternativo, sem comprovar viabilidade. O ponto de partida real do monitor e o terreno podem mudar a opção de navegação. A posição realizada deve ser registrada na UA, mantendo o vínculo ao PA original quando conhecido.
 
@@ -110,13 +118,15 @@ O relatório distingue geração validada automaticamente de homologação móve
 
 ## Testes
 
-No diretório raiz do repositório: `Rscript --vanilla qfield/tests/test_core.R` e `Rscript --vanilla qfield/tests/test_imagery.R`. Ensaios institucionais são locais e não distribuem bases biológicas. O script é derivado dos leitores espaciais da versão pública v3.0.6, com fonte identificada no cabeçalho.
+No diretório raiz do repositório: `Rscript --vanilla tests/test_core.R` e `Rscript --vanilla tests/test_imagery.R`. Ensaios institucionais são locais e não distribuem bases biológicas. O script é derivado dos leitores espaciais da versão pública v3.0.6, com fonte identificada no cabeçalho.
 
-## Publicação dos manuais
+## Documentação e manutenção
 
-Os dois arquivos prontos em `manual/` devem acompanhar a publicação do script e os assets da release. O GitHub exibe HTML como código na página do arquivo; o usuário pode baixar e abrir o HTML autossuficiente. Para um link HTML navegável, publicar essa pasta no GitHub Pages e atualizar o link do README junto à release. Essa ativação ainda não foi feita; os links atuais apontam aos arquivos entregues. O PDF já pode ser visualizado diretamente pelo GitHub após a publicação.
+O [manual HTML](https://danilovcorrea.github.io/Monitora-Planejamento-Amostral/) é servido pelo GitHub Pages; o [PDF](https://danilovcorrea.github.io/Monitora-Planejamento-Amostral/manual_usuario.pdf) corresponde à mesma versão. Fontes editoriais em `manual/`; páginas prontas em `docs/`. Para reconstruir: `python3 manual/build_manual.py`. Para incorporar alterações do renderizador e helpers ao R: `python3 cartografia/build_embedded.py`.
 
-## Cotas cumulativas (v0.4.7)
+Os testes sintéticos em `tests/test_*.R` usam dados temporários. Os testes PyQGIS de homologação recebem caminhos de produtos locais por argumento; os dados de campo não são distribuídos. Consulte `tests/README.md`.
+
+## Cotas cumulativas (v1.0.0)
 
 Vegetação habilitada por padrão. Campestre-Savânico aceita campos e savanas; Ilha inclui automaticamente floresta (inclusive 100% florestal). `incluir_antropizadas=TRUE` permite pastagem (MapBiomas 15) e degradação declarada no vetor, sempre com ocorrências. Não se infere degradação da classe 25. Classes ambíguas ficam pendentes e seus pontos são excluídos, sem bloquear os demais. Vetores inconsistentes continuam exigindo correção.
 
@@ -124,7 +134,7 @@ Vegetação habilitada por padrão. Campestre-Savânico aceita campos e savanas;
 
 `cotas_formacao` recebe classe + n OU percentual. `cotas_atributos` recebe uma lista nomeada por campo. Consulte `selecao_quantidades.csv`, `cotas_realizadas.csv`, `ocorrencias_vegetacao.csv` e o relatório HTML. Quantidades realizadas não equivalem à instalação de UAs nem à conformidade do protocolo. Montagem preserva pontos fornecidos; expansão não migra silenciosamente contratos históricos.
 
-## Revisão após teste no celular (v0.4.7)
+## Revisão após teste no celular (v1.0.0)
 
 - `codigo_pa`: PA com ao menos cinco algarismos; `id_malha` calculado antes do recorte; originais e correspondência preservados ao migrar.
 - Um MBTiles de detalhe, `sat_escala_local`, com alpha e prioridade das fontes; `sat_escala_regional` é o Sentinel offline.
@@ -135,9 +145,9 @@ Vegetação habilitada por padrão. Campestre-Savânico aceita campos e savanas;
 
 Abra `ABRA_AQUI.html` na entrega. Edite no produto QGIS; não há sincronização automática dessas edições com o ZIP de campo ou exportações anteriores.
 
-Na revisão cartográfica v0.4.7, o QGIS e as legendas usam nomes completos. UCs são identificadas pelos atributos oficiais ICMBio; o localizador de UC só aparece com interseção federal. Estados e biomas usam IBGE 2025, com cache persistente (~27 MiB na primeira obtenção), e são entregues em `05_qgis/contexto`. A localização de estados considera geometria original; a simplificação serve somente ao desenho regional.
+Na revisão cartográfica v1.0.0, o QGIS e as legendas usam nomes completos. UCs são identificadas pelos atributos oficiais ICMBio; o localizador de UC só aparece com interseção federal. Estados e biomas usam IBGE 2025, com cache persistente (~27 MiB na primeira obtenção), e são entregues em `05_qgis/contexto`. A localização de estados considera geometria original; a simplificação serve somente ao desenho regional.
 
-## Restrições viárias e protocolo (v0.4.7)
+## Restrições viárias e protocolo (v1.0.0)
 
 Use arquivos/camadas `estradas_pavimentadas`, `estradas_terra` e `trilhas_preexistentes`. Flags `usar_*`: NULL detecta, TRUE exige, FALSE somente exibe. No perfil campestre, candidatos precisam admitir um segmento N/L/S/O a pelo menos 100/50/5 m das fontes habilitadas. A grade e o denominador percentual são preservados; as cotas usam apenas candidatos disponíveis. Linhas usam eixo + metade de `largura_m` quando informada; polígonos usam a borda. Nomes antigos exigem mapeamento explícito.
 
@@ -151,7 +161,7 @@ Legendas dos localizadores acompanham os biomas efetivamente representados; frag
 
 Exemplo sem regras viárias: `parametros_protocolo=list(transecto_m=50,grade_m=c(100,100),direcoes=character(),distancias_viarias_m=numeric())`. Não equivale a cumprir o procedimento campestre. A grade/IDs e as restrições viárias explicitamente ativadas permanecem preservados.
 
-## Piloto Ilha — Noronha (v0.4.7)
+## Piloto Ilha — Noronha (v1.0.0)
 
 O padrão dimensional Ilha foi baseado no pré-projeto Noronha de setembro/2026. Quantidades (60/120), alocação por AE, prioridades, sequência de consulta e quatro pontos complementares são específicos do piloto: use montar para preservá-los. Não se reproduzem apenas com uma semente ou percentuais globais. Categorias restaurada/degradada são condições de manejo; não equivalem automaticamente a formações vegetacionais.
 
@@ -160,3 +170,9 @@ O padrão dimensional Ilha foi baseado no pré-projeto Noronha de setembro/2026.
 Camadas de aves do piloto são referências de planejamento, não UAs instaladas de plantas. Nomes: aves_transectos, aves_Pha_lep, aves_Sul_dac, aves_Sul_sul, AE_com_aves e AE_comuns. O manifesto identifica seus papéis como adicional. grid_id fornecido liga os códigos de exibição entre grade e PAs, preservando os identificadores originais.
 
 Na consulta de homologação Noronha, MapBiomas não forneceu classes válidas nos PAs. A montagem preserva o planejamento fornecido; para planejar novos pontos, forneça classificação local confirmada. Pendências são registradas por ponto, sem apagar classificações válidas do lote.
+
+## Autoria, licença e citação
+
+Autoria e coordenação: **Danilo V. Corrêa**. Código sob [GNU GPL v3](LICENSE), preservada do projeto de origem. As fontes e condições de uso das bases cartográficas e imagens são próprias dos respectivos provedores; a licença do código não as substitui. Marcas institucionais são mantidas como identificação de origem.
+
+Citação sugerida: CORRÊA, Danilo V. *Monitora Campestre Savânico - Alvo Global - Planejamento e Desenho Amostral, Cartografia e navegação em campo*. Versão 1.0.0. GitHub, 2026. https://github.com/danilovcorrea/Monitora-Planejamento-Amostral/releases/tag/v1.0.0.

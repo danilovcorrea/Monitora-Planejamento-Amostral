@@ -1,5 +1,5 @@
 options(monitora.qfield.somente_funcoes=TRUE)
-source('qfield/monitora_criar_qfield.R',encoding='UTF-8')
+source('monitora_planejamento_amostral.R',encoding='UTF-8')
 suppressPackageStartupMessages(library(sf))
 check<-character();ok<-function(n,v){stopifnot(isTRUE(v));check<<-c(check,n);cat('PASS ',n,'\n',sep='')};fails<-function(x)inherits(try(force(x),silent=TRUE),'try-error')
 cr<-st_crs(31983);pt<-function(x,y)st_sf(PA=paste0('PA',seq_along(x)),geometry=st_sfc(lapply(seq_along(x),function(i)st_point(c(x[i],y[i]))),crs=cr))
@@ -12,7 +12,7 @@ ok('UA_sem_par_bloqueia',fails(mq_centers(list(a),c,cr)))
 q<-p;q$papel<-'grade_amostral';ok('nao_baixa_grade_inteira',nrow(mq_centers(list(q),c,cr))==0)
 x<-mq_centers(list(p),c,cr);mask<-mq_mask(x,c);ok('raio_500_metrico',abs(as.numeric(st_area(mask))-pi*500^2)/(pi*500^2)<0.0001)
 # Transporte simulado: contagem de chamadas e PNG com orientação conhecida. Nenhum servidor acessado.
-e<-new.env(parent=globalenv());sys.source('qfield/monitora_criar_qfield.R',envir=e);counter<-0L
+e<-new.env(parent=globalenv());sys.source('monitora_planejamento_amostral.R',envir=e);counter<-0L
 rgb<-array(1,c(256,256,4));rgb[,,1]<-matrix(rep((0:255)/255,256),256,256);rgb[,,2]<-0;rgb[,,3]<-1-rgb[,,1];blob<-png::writePNG(rgb,target=raw())
 e$qfi_buscar<-function(c,z,x,y){counter<<-counter+1L;list(ok=TRUE,raw=blob,formato='png',largura=256L,altura=256L)}
 run<-function(cfg){s<-tempfile();r<-tempfile();dir.create(s);dir.create(r);e$mq_download(x,character(),cfg,s,r)}
@@ -38,7 +38,7 @@ mq_json(list(produto='Sentinel-2 L2A',resolucao_nativa_m=10,versao_acervo=sc$ver
 ok('Sentinel_local_documentado_reutilizado',identical(mq_sentinel(mask,x,sc,scratch,report),sc$sentinel_arquivo))
 sc$renovar_imagens<-TRUE;ok('renovar_nao_reutiliza_Sentinel_antigo',fails(mq_sentinel(mask,x,sc,scratch,report)))
 # MapBiomas: nova chamada consulta apenas coordenadas inéditas.
-mbe<-new.env(parent=globalenv());sys.source('qfield/monitora_criar_qfield.R',envir=mbe);nmb<-0L
+mbe<-new.env(parent=globalenv());sys.source('monitora_planejamento_amostral.R',envir=mbe);nmb<-0L
 mbe$mq_mb_fresh<-function(x,c,report){nmb<<-nmb+nrow(x);x$mb_codigo<-3L;x$mb_classe<-'fixture';x$mb_status<-'obtido';x}
 mc<-c;mc$cache_dir<-tempfile();mbe$mq_mb(pa,mc,report);mbe$mq_mb(pa,mc,report);ok('MapBiomas_cache_sem_reconsulta',nmb==1L)
 mbe$mq_mb(rbind(pa,pt(620100,8020000)),mc,report);ok('MapBiomas_expansao_somente_novos',nmb==2L)

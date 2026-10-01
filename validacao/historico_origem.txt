@@ -1,0 +1,26 @@
+4687eb2e08597927e5daad4001963c92b320fa5f 2026-10-01T02:13:17-03:00 Codex <codex@openai.com>
+feat(qfield): add independent R project generator with PNSV technical validation
+37089b168e7013fd048556cb4cdf1a65ad6ed99c 2026-10-01T02:13:28-03:00 Codex <codex@openai.com>
+chore(qfield): normalize portable validation evidence
+0a96b652032fe566f9ee2dc2c67a1ecc84a381b4 2026-10-01T03:49:38-03:00 Codex <codex@openai.com>
+QField v0.2: imagens regionais e recortes, cache persistente e manual
+0a6cac15f3b53334ff4a80e834d4126509a391b5 2026-10-01T05:31:01-03:00 Codex <codex@openai.com>
+feat(qfield): add cumulative sampling quotas and v0.3 homologation
+b3c49d1395506771553a24efcfb1b75e54ae177b 2026-10-01T12:27:50-03:00 Codex <codex@openai.com>
+feat(qfield): revisar identificação, mosaicos e cartografia editável
+d1366e9adf6313c5fbc190e7d924688aaaee4661 2026-10-01T13:15:33-03:00 Codex <codex@openai.com>
+Ajusta legendas e localizadores dos mapas QField v0.4.1
+0b6195dce9124c5c3a841e396f031b80418c3b27 2026-10-01T14:26:34-03:00 Codex <codex@openai.com>
+Aplica restrições viárias por protocolo e corrige legendas de biomas v0.4.2
+fe73f7f11ccce43ec1bc307d4b9c4cd8e1352c83 2026-10-01T15:00:45-03:00 Codex <codex@openai.com>
+Permite seleção disponível no perfil personalizado e homologa Censipam 100m
+777c1e4f5b9c930cb0f9478dab72adc0c4593b4f 2026-10-01T15:08:03-03:00 Codex <codex@openai.com>
+Inclui detalhe offline nos layouts e reexporta mapas Censipam
+96d93eb041978dc9db883444f32cb2a9d230dc7f 2026-10-01T15:23:58-03:00 Codex <codex@openai.com>
+Adapta metas à capacidade e elegibilidade dos perfis Campestre e Ilha
+cd66da038ec6010795a0195d48006661ee027211 2026-10-01T16:15:05-03:00 Codex <codex@openai.com>
+Homologa piloto Ilha Noronha e corrige composição Sentinel
+e598ff7cddf9f0fab9bc7b11772ced8a3f9c7657 2026-10-01T16:26:55-03:00 Codex <codex@openai.com>
+Ajusta rodapés e amplia fontes dos mapas com e sem UC
+c6c17204ebb2024ae98417b83dcfff09aea25db7 2026-10-01T16:45:49-03:00 Codex <codex@openai.com>
+Mantém quadro vermelho das AEs visível na escala do localizador

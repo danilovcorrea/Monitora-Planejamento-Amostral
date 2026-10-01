@@ -1,5 +1,5 @@
 options(monitora.qfield.somente_funcoes=TRUE)
-source('qfield/monitora_criar_qfield.R',encoding='UTF-8')
+source('monitora_planejamento_amostral.R',encoding='UTF-8')
 suppressPackageStartupMessages(library(sf))
 checks<-character();ok<-function(name,v){if(!isTRUE(v))stop(name);checks<<-c(checks,name);cat('PASS ',name,'\n',sep='')}
 fails<-function(expr)inherits(try(force(expr),silent=TRUE),'try-error')
@@ -20,7 +20,7 @@ ok('EPSG_automatico',mq_crs(st_transform(st_sf(geometry=st_sfc(rect(198000,84320
 p<-tempfile();dir.create(p);st_write(st_sf(geometry=st_sfc(rect(198000,8432000,199000,8433000),crs=cr)),file.path(p,'areas_elegiveis.gpkg'),quiet=TRUE);sc<-tempfile();dir.create(sc);rd<-mq_read(p,sc);ok('entrada_AE_padrao',length(rd$camadas)==1)
 wrong<-tempfile();dir.create(wrong);st_write(a,file.path(wrong,'outros_poligonos.gpkg'),quiet=TRUE);ok('nao_inferir_AE_generica',fails(mq_read(wrong,sc)))
 # Integração local usa resposta federal sintética somente no ambiente deste teste; produto normal sempre consulta rede.
-e<-new.env(parent=globalenv());sys.source('qfield/monitora_criar_qfield.R',envir=e)
+e<-new.env(parent=globalenv());sys.source('monitora_planejamento_amostral.R',envir=e)
 e$mq_uc<-function(ae,c)list(x=mq_empty(4326),fonte='fixture',camada='fixture',titulo='fixture sem UC',consulta='teste',total_bbox=0,status='consulta_completa')
 # Fundo sintético amplo: valida o fluxo obrigatório sem consultar imagens externas.
 br<-st_bbox(st_transform(st_buffer(st_read(file.path(p,'areas_elegiveis.gpkg'),quiet=TRUE),2000),3857))

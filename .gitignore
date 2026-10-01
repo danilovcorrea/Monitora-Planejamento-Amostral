@@ -1,0 +1,9 @@
+entrada/
+saida/
+cache/
+.construcao/
+.Rhistory
+.RData
+__pycache__/
+*.pyc
+.DS_Store

@@ -1,4 +1,4 @@
-source('qfield/tests/test_core.R',encoding='UTF-8');start<-length(checks)
+source('tests/test_core.R',encoding='UTF-8');start<-length(checks)
 for(profile in c('campestre_savanico','ilha')) {
  input<-tempfile();dir.create(input);ae<-st_read(file.path(co$entrada,'areas_elegiveis.gpkg'),quiet=TRUE);ae$formacao<-if(profile=='ilha')'florestal'else 'pastagem';st_write(ae,file.path(input,'areas_elegiveis.gpkg'),quiet=TRUE)
  cfg<-co;cfg$entrada<-input;cfg$saida<-tempfile();cfg$perfil<-profile;cfg$estratificar_vegetacao<-TRUE;cfg$formacao_campo<-'formacao';cfg$prioritarios<-list(n=NULL,percentual=100);cfg$politica_insuficiencia<-'usar_disponiveis';cfg$parametros_protocolo<-list(transecto_m=25,grade_m=c(100,100))

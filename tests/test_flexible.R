@@ -1,4 +1,4 @@
-options(monitora.qfield.somente_funcoes=TRUE);source('qfield/monitora_criar_qfield.R',encoding='UTF-8');suppressPackageStartupMessages(library(sf))
+options(monitora.qfield.somente_funcoes=TRUE);source('monitora_planejamento_amostral.R',encoding='UTF-8');suppressPackageStartupMessages(library(sf))
 r<-tempfile();dir.create(r);n<-0;ok<-function(name,v){stopifnot(isTRUE(v));n<<-n+1;cat('PASS',name,'\n')};fails<-function(e)inherits(try(force(e),silent=TRUE),'try-error')
 c<-MQ_CONFIG;c$perfil<-'personalizado';c$estratificar_vegetacao<-FALSE;c$politica_insuficiencia<-'usar_disponiveis';c$parametros_protocolo<-list(transecto_m=50,grade_m=c(100,100),direcoes=character(),distancias_viarias_m=numeric());c<-mq_protocol(c);mq_validate_config(c)
 ok('personalizado_sem_regras_campestres',length(c$direcoes_campo)==0&&length(c$distancias_viarias_m)==0&&is.na(c$distancia_min_m))

@@ -1,5 +1,5 @@
 options(monitora.qfield.somente_funcoes=TRUE)
-source('qfield/monitora_criar_qfield.R',encoding='UTF-8')
+source('monitora_planejamento_amostral.R',encoding='UTF-8')
 suppressPackageStartupMessages(library(sf))
 checks<-character();ok<-function(n,v){if(!isTRUE(v))stop(n);checks<<-c(checks,n);cat('PASS ',n,'\n',sep='')};fails<-function(x)inherits(try(force(x),silent=TRUE),'try-error')
 report<-tempfile();dir.create(report)

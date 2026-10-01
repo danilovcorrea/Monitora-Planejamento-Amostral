@@ -1,0 +1,92 @@
+{
+  "versao": "1.0.0",
+  "data": "2026-10-01",
+  "escopo": "Suíte R sintética; sem novo ensaio físico no celular",
+  "resultados": [
+    {
+      "teste": "test_adaptive.R",
+      "status": "PASS",
+      "segundos": 2.0,
+      "verificacoes_PASS": 29
+    },
+    {
+      "teste": "test_adaptive_integration.R",
+      "status": "PASS",
+      "segundos": 13.8,
+      "verificacoes_PASS": 39
+    },
+    {
+      "teste": "test_core.R",
+      "status": "PASS",
+      "segundos": 8.6,
+      "verificacoes_PASS": 31
+    },
+    {
+      "teste": "test_design.R",
+      "status": "PASS",
+      "segundos": 1.4,
+      "verificacoes_PASS": 34
+    },
+    {
+      "teste": "test_design_integration.R",
+      "status": "PASS",
+      "verificacoes_PASS": 41,
+      "observacao": "Cenário viário explicitado como Campestre-Savânico e reexecutado com sucesso; antes herdava perfil personalizado sem restrições."
+    },
+    {
+      "teste": "test_flexible.R",
+      "status": "PASS",
+      "segundos": 0.6,
+      "verificacoes_PASS": 16
+    },
+    {
+      "teste": "test_flexible_integration.R",
+      "status": "PASS",
+      "segundos": 11.1,
+      "verificacoes_PASS": 35
+    },
+    {
+      "teste": "test_imagery.R",
+      "status": "PASS",
+      "segundos": 7.0,
+      "verificacoes_PASS": 25
+    },
+    {
+      "teste": "test_island.R",
+      "status": "PASS",
+      "segundos": 0.9,
+      "verificacoes_PASS": 17
+    },
+    {
+      "teste": "test_revision.R",
+      "status": "PASS",
+      "segundos": 9.8,
+      "verificacoes_PASS": 28
+    },
+    {
+      "teste": "test_roads.R",
+      "status": "PASS",
+      "segundos": 2.2,
+      "verificacoes_PASS": 30
+    },
+    {
+      "teste": "test_sentinel_mosaic.R",
+      "status": "PASS",
+      "segundos": 3.1,
+      "verificacoes_PASS": 5
+    }
+  ],
+  "comparacao_origem": {
+    "configuracao_identica": true,
+    "funcoes_logica_preservada": 107,
+    "alias_compativel": true,
+    "renderizador_alterado_somente_identificacao": true
+  },
+  "manual": {
+    "pdf_paginas": 15,
+    "html_secoes": 14,
+    "capa_conferida": true
+  },
+  "quantidade_suites_R": 12,
+  "verificacoes_PASS_incluindo_base_reutilizada": 330
+}

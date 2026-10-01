@@ -1,4 +1,4 @@
-source('qfield/tests/test_core.R',encoding='UTF-8');start<-length(checks)
+source('tests/test_core.R',encoding='UTF-8');start<-length(checks)
 cx<-co;cx$saida<-tempfile();cx$perfil<-'personalizado';cx$parametros_protocolo<-list(transecto_m=50,grade_m=c(100,100),direcoes=character(),distancias_viarias_m=numeric());cx$estratificar_vegetacao<-FALSE;cx$politica_insuficiencia<-'usar_disponiveis';cx$prioritarios<-list(n=NULL,percentual=100)
 rx<-e$monitora_criar_qfield(cx);q<-data.table::fread(file.path(rx$pasta,'02_relatorio/selecao_quantidades.csv'));ok('projeto_flexivel_reduz_alternativos',q$realizado[q$categoria=='alternativos']==0&&q$deficit[q$categoria=='alternativos']>0)
 empty<-st_read(file.path(rx$pasta,'01_qfield/dados/PA_altern.gpkg'),quiet=TRUE);ok('camada_alternativos_vazia_valida',nrow(empty)==0)
