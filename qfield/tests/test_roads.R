@@ -11,7 +11,7 @@ ok('distancia_segmento_limiar_exato',!z$mq_viavel_vias[1]&&all(z$mq_viavel_vias[
 ok('direcao_alternativa',grepl('N',z$mq_direcoes_vias[2])&&!grepl('O',z$mq_direcoes_vias[2]))
 ok('ids_geometria_preservados',identical(st_geometry(g),st_geometry(z))&&identical(g$chave_grade,z$chave_grade))
 c$prioritarios<-list(n=NULL,percentual=20);c$alternativos<-list(n=NULL,percentual=NULL);sel<-mq_select(z,c);ok('denominador_original_selecao_simples',sum(sel$categoria=='prioritario')==1&&sum(sel$categoria=='alternativo')==2&&sel$categoria[1]=='grade')
-c2<-c;c2$prioritarios<-list(n=2,percentual=NULL);ok('insuficiencia_sem_reducao',fails(mq_select(z,c2)))
+c2<-c;c2$politica_insuficiencia<-'bloquear';c2$prioritarios<-list(n=2,percentual=NULL);ok('insuficiencia_sem_reducao',fails(mq_select(z,c2)))
 old<-z;old$categoria[1]<-'prioritario';ok('historico_conflitante_bloqueado',fails(mq_select(old,c)))
 z$mq_apto<-TRUE;z$mq_formacao<-'campestre';c3<-c;c3$estratificar_vegetacao<-TRUE;d<-mq_design_select(z,c3,r);ok('restricao_no_solver',sum(d$categoria!='grade')==3&&d$categoria[1]=='grade')
 cf<-c;cf$usar_estradas_pavimentadas<-FALSE;ok('desabilitar_exibe_sem_filtrar',length(mq_road_sources(list(layer),cf,r))==0)

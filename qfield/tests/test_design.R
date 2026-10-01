@@ -3,7 +3,7 @@ source('qfield/monitora_criar_qfield.R',encoding='UTF-8')
 suppressPackageStartupMessages(library(sf))
 checks<-character();ok<-function(n,v){if(!isTRUE(v))stop(n);checks<<-c(checks,n);cat('PASS ',n,'\n',sep='')};fails<-function(x)inherits(try(force(x),silent=TRUE),'try-error')
 report<-tempfile();dir.create(report)
-c<-MQ_CONFIG;c$prioritarios<-list(n=20,percentual=NULL);c$mapbiomas<-FALSE;c$estratificar_por_atributos<-TRUE
+c<-MQ_CONFIG;c$politica_insuficiencia<-'bloquear';c$prioritarios<-list(n=20,percentual=NULL);c$mapbiomas<-FALSE;c$estratificar_por_atributos<-TRUE
 c$cotas_atributos<-list(fogo=data.frame(classe=c('0','1'),percentual=c(70,30)),setor=data.frame(classe=c('N','S'),percentual=c(40,60)))
 d<-expand.grid(mq_formacao=c('campestre','savanica'),atr_fogo=c('0','1'),atr_setor=c('N','S'),rep=1:16,stringsAsFactors=FALSE)
 g<-st_as_sf(transform(d,x=seq_len(nrow(d))*100,y=8000000),coords=c('x','y'),crs=31983);g$id_grade<-seq_len(nrow(g));g$PA<-paste0('PA',g$id_grade);g$chave_grade<-g$PA;g$categoria<-'grade';g$mq_apto<-TRUE
@@ -26,11 +26,11 @@ tie<-g[g$atr_fogo==ifelse(g$mq_formacao=='campestre','1','0'),];ct<-c;ct$priorit
 st<-mq_design_select(tie,ct,report);ok('arredondamento_conjunto',sum(st$categoria=='prioritario')==1&&sum(st$categoria=='alternativo')==2)
 cs<-c;cs$cotas_atributos<-list();cs$estratificar_por_atributos<-FALSE
 single<-g[g$mq_formacao=='campestre',];ss<-mq_design_select(single,cs,report);ok('formacao_unica',all(ss$mq_formacao[ss$categoria=='prioritario']=='campestre'))
-forest<-g;forest$mq_formacao[forest$mq_formacao=='savanica']<-'florestal';cf<-cs;cf$incluir_formacao_florestal<-TRUE;cf$perfil<-'ilha';ok('floresta_exige_cotas',fails(mq_design_select(forest,cf,report)));cf$cotas_formacao<-data.frame(classe=c('campestre','florestal'),percentual=c(50,50));fs<-mq_design_select(forest,cf,report);ok('floresta_com_cota',sum(fs$categoria=='prioritario'&fs$mq_formacao=='florestal')==10)
+forest<-g;forest$mq_formacao[forest$mq_formacao=='savanica']<-'florestal';cf<-cs;cf$incluir_formacao_florestal<-TRUE;cf$perfil<-'ilha';ok('floresta_cotas_automaticas',sum(mq_design_select(forest,cf,report)$categoria=='prioritario')==20);cf$cotas_formacao<-data.frame(classe=c('campestre','florestal'),percentual=c(50,50));fs<-mq_design_select(forest,cf,report);ok('floresta_com_cota',sum(fs$categoria=='prioritario'&fs$mq_formacao=='florestal')==10)
 cz<-c;cz$prioritarios<-list(n=0,percentual=NULL);zs<-mq_design_select(g,cz,report);ok('zero_prioritarios',all(zs$categoria=='grade'))
 # Classificação cartográfica: afloramento não é automaticamente campo rupestre.
-m<-g[1:4,];m$mq_formacao<-NULL;m$mq_apto<-NULL;m$mb_codigo<-c(12,4,3,15);cm<-MQ_CONFIG;cl<-mq_design_classify(m,list(),cm,report);ok('classes_principais',identical(cl$mq_formacao,c('campestre','savanica','florestal','fora_alvo'))&&identical(cl$mq_apto,c(TRUE,TRUE,FALSE,FALSE)))
-m$mb_codigo[1]<-29;ok('afloramento_exige_validacao',fails(mq_design_classify(m,list(),cm,report)))
+m<-g[1:4,];m$mq_formacao<-NULL;m$mq_apto<-NULL;m$mb_codigo<-c(12,4,3,15);cm<-MQ_CONFIG;cl<-mq_design_classify(m,list(),cm,report);ok('classes_principais',identical(cl$mq_formacao,c('campestre','savanica','florestal','pastagem'))&&identical(cl$mq_apto,c(TRUE,TRUE,FALSE,TRUE)))
+m$mb_codigo[1]<-29;ok('afloramento_exige_validacao',!mq_design_classify(m,list(),cm,report)$mq_apto[1])
 # Atributos em polígonos: conflito real versus sobreposição concordante.
 rect<-function(x1,y1,x2,y2)st_polygon(list(matrix(c(x1,y1,x2,y1,x2,y2,x1,y2,x1,y1),ncol=2,byrow=TRUE)))
 v<-st_sf(formacao=c('campestre','campestre'),fogo=c('1','1'),geometry=st_sfc(rect(0,7999000,500,8001000),rect(0,7999000,500,8001000),crs=31983));ls<-list(list(x=v,papel='areas_elegiveis',fonte='teste | AE'))

@@ -4,7 +4,7 @@ suppressPackageStartupMessages(library(sf))
 checks<-character();ok<-function(name,v){if(!isTRUE(v))stop(name);checks<<-c(checks,name);cat('PASS ',name,'\n',sep='')}
 fails<-function(expr)inherits(try(force(expr),silent=TRUE),'try-error')
 rect<-function(x1,y1,x2,y2)st_polygon(list(matrix(c(x1,y1,x2,y1,x2,y2,x1,y2,x1,y1),ncol=2,byrow=TRUE)))
-cr<-st_crs(31983);a<-st_sf(geometry=st_sfc(rect(0,0,300,300),rect(100,100,400,400),crs=cr));c<-MQ_CONFIG;c$estratificar_vegetacao<-FALSE;c$grade_m<-c(100,100);c$mapbiomas<-FALSE
+cr<-st_crs(31983);a<-st_sf(geometry=st_sfc(rect(0,0,300,300),rect(100,100,400,400),crs=cr));c<-MQ_CONFIG;c$politica_insuficiencia<-'bloquear';c$estratificar_vegetacao<-FALSE;c$grade_m<-c(100,100);c$mapbiomas<-FALSE
 ctx<-list(list(chave='EXTERNO',origem=c(0,0),wkt=NULL,uc=''))
 g<-mq_grid(a,ctx,cr,c);ok('union_vertices_unicos',nrow(g)==23 && !anyDuplicated(g$chave_grade));ok('vertices_nao_centroides',all(g$x_m%%100==0 & g$y_m%%100==0))
 sel<-mq_select(g,c);ok('cotas_globais',sum(sel$categoria=='prioritario')==5 && sum(sel$categoria=='alternativo')==10)
@@ -27,7 +27,7 @@ br<-st_bbox(st_transform(st_buffer(st_read(file.path(p,'areas_elegiveis.gpkg'),q
 rr<-terra::rast(nrows=128,ncols=128,nlyrs=3,xmin=br[1],xmax=br[3],ymin=br[2],ymax=br[4],crs='EPSG:3857');terra::values(rr)<-100
 rt<-tempfile(fileext='.tif');terra::writeRaster(rr,rt,datatype="INT1U");rs<-tempfile(fileext='.mbtiles');monitora_qfield_mbtiles(rt,rs,'fixture sintética')
 mq_json(list(produto='Sentinel-2 L2A',resolucao_nativa_m=10,sha256=mq_hash(rs),versao_acervo='fixture',origem='TESTE SINTÉTICO; sem imagem real'),paste0(rs,'.fonte.json'))
-co<-MQ_CONFIG;co$gerar_cartografia<-FALSE;co$estratificar_vegetacao<-FALSE;co$sentinel_arquivo<-rs;co$baixar_imagem_detalhe<-FALSE;co$cache_dir<-tempfile();co$entrada<-p;co$saida<-tempfile();co$mapbiomas<-FALSE;co$projeto<-'Teste sintético'
+co<-MQ_CONFIG;co$perfil<-'personalizado';co$parametros_protocolo<-list(transecto_m=50,grade_m=c(156.25,156.25),direcoes=character(),distancias_viarias_m=numeric());co$gerar_cartografia<-FALSE;co$estratificar_vegetacao<-FALSE;co$sentinel_arquivo<-rs;co$baixar_imagem_detalhe<-FALSE;co$cache_dir<-tempfile();co$entrada<-p;co$saida<-tempfile();co$mapbiomas<-FALSE;co$projeto<-'Teste sintético'
 r<-e$monitora_criar_qfield(co);ok('pacote_final_existe',file.exists(file.path(r$pasta,'01_qfield','pacote_qfield.zip')))
 reg<-st_read(file.path(r$pasta,'01_qfield','dados','grade_amostral.gpkg'),layer='grade_amostral',quiet=TRUE);ok('PA_id_grade',identical(reg$PA,reg$codigo_pa)&&all(grepl('^PA[0-9]{5,}$',reg$codigo_pa)))
 # Teste de falha remota: nenhuma promoção final.
