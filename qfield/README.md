@@ -1,14 +1,14 @@
 # Monitora — criação independente de projetos QField
 
-Script `monitora_criar_qfield.R`, versão 0.3.0. Execute em R/RStudio; não é necessário carregar o script biológico do Monitora. QGIS é usado na homologação, não como dependência de execução. Consulte `HOMOLOGACAO.md` para o alcance e as limitações da validação.
+Script `monitora_criar_qfield.R`, versão 0.4.0. Execute em R/RStudio; não é necessário carregar o script biológico do Monitora. QGIS/PyQGIS é necessário para gerar o projeto de edição, os quatro layouts e mapas PDF/PNG (habilitados por padrão). Consulte `HOMOLOGACAO.md` para o alcance e as limitações da validação.
 
-Consulte o manual pronto: [HTML](manual/manual_qfield_v0.3.0.html) · [PDF](manual/manual_qfield_v0.3.0.pdf). Ambos são arquivos versionados para disponibilização junto ao script no GitHub, sem executar R para gerar o manual.
+Consulte o manual pronto: [HTML](manual/manual_qfield_v0.4.0.html) · [PDF](manual/manual_qfield_v0.4.0.pdf). Ambos são arquivos versionados para disponibilização junto ao script no GitHub, sem executar R para gerar o manual.
 
 ## Início
 
-1. Crie duas pastas distintas: `qfield_input` e `qfield_output`.
+1. Crie somente `entrada/` ao lado do arquivo R. Subpastas são lidas recursivamente; todas as pastas de saída são automáticas.
 2. Coloque na entrada pelo menos uma camada de polígonos identificada como `areas_elegiveis`.
-3. Edite o bloco `MQ_CONFIG`, perto do início do script, com os caminhos absolutos. No Windows, prefira `/` nos caminhos.
+3. Edite o bloco `MQ_CONFIG`, perto do início do script, com caminhos relativos à pasta do script ou absolutos. No Windows, prefira `/` nos caminhos.
 4. Instale, caso faltem: `sf`, `terra`, `xml2`, `zip`, `jsonlite`, `digest`, `httr`, `data.table`, `DBI`, `RSQLite`, `cli`, `curl`, `png`, `jpeg`, `lpSolve`.
 5. Abra o script no RStudio e use **Source**. A conexão à internet é necessária para a consulta oficial às UCs federais. O MapBiomas também usa internet quando ativado.
 6. Consulte o relatório. Importe `01_qfield/pacote_qfield.zip` em uma pasta nova do QField e confira em modo avião.
@@ -53,7 +53,7 @@ Sentinel é verificado por proveniência e cobertura de pixels válidos em todo 
 
 Formatos vetoriais: KML, KMZ, GeoPackage, shapefile completo diretamente ou em ZIP. O ZIP precisa conter SHP/SHX/DBF/PRJ e pode conter seus auxiliares. KMZ deve conter KML e imagens locais permitidas; referências externas não são executadas. Geometrias inválidas, CRS ausente, tipos mistos incompatíveis e perdas de feições bloqueiam a importação.
 
-Fundos: MBTiles raster e rasters georreferenciados TIF/TIFF, IMG e ASC. MBTiles vetorial não é aceito como imagem. Formatos com arquivos auxiliares devem ser fornecidos completos; prefira GeoTIFF autossuficiente. MBTiles de detalhe são recortados em raios de 500 m, preservando os originais. A camada resultante chama-se `detalhe_raio_500m`. Google Satellite online e Sentinel offline compõem o fundo mínimo obrigatório. Downloads exigem confirmação e os caches compatíveis são reaproveitados. Raster não é uma extensão universal.
+Fundos: MBTiles raster e rasters georreferenciados TIF/TIFF, IMG e ASC. MBTiles vetorial não é aceito como imagem. Formatos com arquivos auxiliares devem ser fornecidos completos; prefira GeoTIFF autossuficiente. MBTiles de detalhe são recortados em raios de 500 m, preservando os originais. A camada resultante chama-se `sat_escala_local`. Google Satellite online e Sentinel offline compõem o fundo mínimo obrigatório. Downloads exigem confirmação e os caches compatíveis são reaproveitados. Raster não é uma extensão universal.
 
 Nomes padronizados (arquivo sem extensão ou camada interna):
 
@@ -64,7 +64,7 @@ Nomes padronizados (arquivo sem extensão ou camada interna):
 - `transectos`: segmentos de UAs observadas; não usar para caminhos de acesso.
 - `formacao_florestal`, `rodovias`, `estradas`, `trilhas`: referências para diagnóstico de distâncias, quando fornecidas.
 - `acessos`: linhas de referência, sem assumir automaticamente o tipo de via.
-- `apoio_campo.gpkg`: somente `pontos_interesse` (POINT, campo `ponto_interesse`) e `trajeto` (MULTILINESTRING, campo `trajeto`), ambos com `obs` texto, `data_hora` data/hora e identificador `fid`. São as camadas editáveis.
+- `pontos_interesse.gpkg` e `trajeto.gpkg` (ou o legado `apoio_campo.gpkg`): `pontos_interesse` (POINT, campo `ponto_interesse`) e `trajeto` (MULTILINESTRING, campo `trajeto`), ambos com `obs` texto, `data_hora` data/hora e identificador `fid`. São as camadas editáveis no projeto de campo. Campos adicionais fornecidos são preservados.
 
 Para nomes diferentes, forneça `camadas_qfield.csv` com `arquivo;camada;papel` e, opcionalmente, `nome;campo_rotulo;ano`. Um registro por camada. Exemplo:
 
@@ -116,8 +116,19 @@ No diretório raiz do repositório: `Rscript --vanilla qfield/tests/test_core.R`
 
 Os dois arquivos prontos em `manual/` devem acompanhar a publicação do script e os assets da release. O GitHub exibe HTML como código na página do arquivo; o usuário pode baixar e abrir o HTML autossuficiente. Para um link HTML navegável, publicar essa pasta no GitHub Pages e atualizar o link do README junto à release. Essa ativação ainda não foi feita; os links atuais apontam aos arquivos entregues. O PDF já pode ser visualizado diretamente pelo GitHub após a publicação.
 
-## Cotas cumulativas (v0.3.0)
+## Cotas cumulativas (v0.4.0)
 
 Vegetação habilitada por padrão; florestal e atributos adicionais desabilitados. Informe `formacao_campo`/`formacao_mapa` para classificação local ou use MapBiomas conservador. Campos rupestres e classes ambíguas exigem validação local. `cotas_formacao` recebe classe + n OU percentual. `cotas_atributos` é uma lista nomeada por campo, com uma tabela classe + n OU percentual por atributo. As margens são atendidas simultaneamente, não substituídas nem multiplicadas como se fossem independentes.
 
 O solver escolhe arredondamentos conjuntamente, mantém capacidades e PAs preservados e bloqueia conflitos antes das imagens. Alternativos padrão: dobro por combinação. Cotas personalizadas de alternativos acompanham as margens dos prioritários; veja as diferenças no manual, seções 12–13. Na montagem, apenas audita as cotas e preserva campos fornecidos; na expansão, verifica o contrato histórico. Consulte CSVs de cotas, combinações e o JSON de solução em `02_relatorio`.
+
+## Revisão após teste no celular (v0.4.0)
+
+- `codigo_pa`: PA com ao menos cinco algarismos; `id_malha` calculado antes do recorte; originais e correspondência preservados ao migrar.
+- Um MBTiles de detalhe, `sat_escala_local`, com alpha e prioridade das fontes; `sat_escala_regional` é o Sentinel offline.
+- Um GPKG por camada em `01_qfield/dados`; apoio antigo agrupado continua legível.
+- `05_qgis/projeto_edicao.qgz`: vetores de trabalho separados, quatro temas/marcadores/layouts editáveis.
+- `mapas_pdf` e `mapas_png`: AEs, grade, prioritários e alternativos. PDFs georreferenciados, PNG com PGW/PRJ.
+- `gerar_cartografia=TRUE`, `qgis_python=NULL`, `mapas_papel='A4'`, `mapas_dpi=300`, `elaboracao='Programa Monitora'`.
+
+Abra `ABRA_AQUI.html` na entrega. Edite no produto QGIS; não há sincronização automática dessas edições com o ZIP de campo ou exportações anteriores.

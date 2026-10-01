@@ -27,9 +27,9 @@ br<-st_bbox(st_transform(st_buffer(st_read(file.path(p,'areas_elegiveis.gpkg'),q
 rr<-terra::rast(nrows=128,ncols=128,nlyrs=3,xmin=br[1],xmax=br[3],ymin=br[2],ymax=br[4],crs='EPSG:3857');terra::values(rr)<-100
 rt<-tempfile(fileext='.tif');terra::writeRaster(rr,rt,datatype="INT1U");rs<-tempfile(fileext='.mbtiles');monitora_qfield_mbtiles(rt,rs,'fixture sintética')
 mq_json(list(produto='Sentinel-2 L2A',resolucao_nativa_m=10,sha256=mq_hash(rs),versao_acervo='fixture',origem='TESTE SINTÉTICO; sem imagem real'),paste0(rs,'.fonte.json'))
-co<-MQ_CONFIG;co$estratificar_vegetacao<-FALSE;co$sentinel_arquivo<-rs;co$baixar_imagem_detalhe<-FALSE;co$cache_dir<-tempfile();co$entrada<-p;co$saida<-tempfile();co$mapbiomas<-FALSE;co$projeto<-'Teste sintético'
+co<-MQ_CONFIG;co$gerar_cartografia<-FALSE;co$estratificar_vegetacao<-FALSE;co$sentinel_arquivo<-rs;co$baixar_imagem_detalhe<-FALSE;co$cache_dir<-tempfile();co$entrada<-p;co$saida<-tempfile();co$mapbiomas<-FALSE;co$projeto<-'Teste sintético'
 r<-e$monitora_criar_qfield(co);ok('pacote_final_existe',file.exists(file.path(r$pasta,'01_qfield','pacote_qfield.zip')))
-reg<-st_read(file.path(r$pasta,'01_qfield','dados','referencias.gpkg'),layer='grade_amostral',quiet=TRUE);ok('PA_id_grade',identical(reg$PA,paste0('PA',reg$id_grade)))
+reg<-st_read(file.path(r$pasta,'01_qfield','dados','grade_amostral.gpkg'),layer='grade_amostral',quiet=TRUE);ok('PA_id_grade',identical(reg$PA,reg$codigo_pa)&&all(grepl('^PA[0-9]{5,}$',reg$codigo_pa)))
 # Teste de falha remota: nenhuma promoção final.
 e$mq_uc<-function(ae,c)stop('consulta indisponível');co$saida<-tempfile();ok('falha_UC_bloqueia',fails(e$monitora_criar_qfield(co)));ok('falha_relatorio_preservado',length(list.files(co$saida,pattern='resultado.json',recursive=TRUE))==1)
 cat('TOTAL ',length(checks),' PASS\n',sep='')
@@ -48,14 +48,14 @@ a1<-st_sfc(st_linestring(matrix(c(0,0,50,0),2,2,byrow=TRUE)),crs=cr);a2<-st_sfc(
 cat('TOTAL_FINAL ',length(checks),' PASS\n',sep='')
 
 # Camadas vazias precisam aceitar captura; GEOMETRY genérica impede o QGIS de gravar.
-su<-st_layers(file.path(r$pasta,'01_qfield/dados/apoio_campo.gpkg'))
+su<-rbind(data.frame(st_layers(file.path(r$pasta,'01_qfield/dados/pontos_interesse.gpkg'))[c('name','geomtype')]),data.frame(st_layers(file.path(r$pasta,'01_qfield/dados/trajeto.gpkg'))[c('name','geomtype')]))
 ok('apoio_vazio_tipado',identical(as.character(su$geomtype),c('Point','Multi Line String')))
 zco<-co;zco$saida<-tempfile();zco$prioritarios<-list(n=0,percentual=NULL);zco$alternativos<-list(n=0,percentual=NULL)
 e$mq_uc<-function(ae,c)list(x=mq_empty(4326),fonte='fixture',camada='fixture',titulo='fixture',consulta='teste',total_bbox=0,status='consulta_completa')
-zr<-e$monitora_criar_qfield(zco);zg<-st_layers(file.path(zr$pasta,'01_qfield/dados/referencias.gpkg'))
+zr<-e$monitora_criar_qfield(zco);zg<-list(name=c('PA_priorit','PA_altern'),features=vapply(c('PA_priorit','PA_altern'),function(n)st_layers(file.path(zr$pasta,'01_qfield/dados',paste0(n,'.gpkg')))$features,numeric(1)))
 ok('exportacao_cotas_zero',all(zg$features[match(c('PA_priorit','PA_altern'),zg$name)]==0))
 exco<-co;exco$modo<-'expandir';exco$saida<-tempfile();exco$referencia_anterior<-file.path(r$pasta,'02_relatorio')
-er<-e$monitora_criar_qfield(exco);eg<-st_read(file.path(er$pasta,'01_qfield/dados/referencias.gpkg'),layer='grade_amostral',quiet=TRUE)
+er<-e$monitora_criar_qfield(exco);eg<-st_read(file.path(er$pasta,'01_qfield/dados/grade_amostral.gpkg'),layer='grade_amostral',quiet=TRUE)
 ok('expansao_integral_idempotente',identical(reg$PA,eg$PA)&&identical(reg$categoria,eg$categoria)&&all(st_coordinates(reg)==st_coordinates(eg)))
 # Exportações entregues: atributos e coordenadas após reabrir KML/CSV.
 kfile<-list.files(file.path(r$pasta,'03_vetores/kml'),pattern='grade',full.names=TRUE)

@@ -14,7 +14,7 @@ mi<-tempfile();dir.create(mi);file.copy(file.path(p,'areas_elegiveis.gpkg'),mi)
 pr<-gd[gd$categoria=='prioritario',];al<-gd[gd$categoria=='alternativo',];pr$mq_formacao<-'savanica'
 st_write(pr,file.path(mi,'PA_priorit.gpkg'),layer='PA_priorit',quiet=TRUE);st_write(al,file.path(mi,'PA_altern.gpkg'),layer='PA_altern',quiet=TRUE)
 mc<-dc;mc$entrada<-mi;mc$saida<-tempfile();mc$modo<-'montar';mr<-e$monitora_criar_qfield(mc)
-mp<-st_read(file.path(mr$pasta,'01_qfield/dados/referencias.gpkg'),layer='PA_priorit',quiet=TRUE)
+mp<-st_read(file.path(mr$pasta,'01_qfield/dados/PA_priorit.gpkg'),layer='PA_priorit',quiet=TRUE)
 ok('montagem_preserva_classificacao_conflitante',all(mp$mq_formacao=='savanica')&&identical(mp$PA,pr$PA))
 ok('montagem_nao_audita_denominador_parcial',!file.exists(file.path(mr$pasta,'02_relatorio/cotas_fornecidas_auditoria.csv'))&&grepl('pendências',mr$status))
 # Expansão com retirada de área conserva os registros históricos fora das cotas atuais.
