@@ -133,6 +133,20 @@ def locator_layers(project,out,aes,crs):
  group.setExpanded(False)
  return states,biomes,marker,extent,palette
 
+def ae_locator_frame(project,out,marker):
+ # Uma única feição; símbolo dinâmico evita quadros duplicados por polígono.
+ cr=QgsCoordinateReferenceSystem(3857);g=QgsGeometry.fromRect(marker.extent());g.transform(QgsCoordinateTransform(marker.crs(),cr,project));bbox=g.boundingBox()
+ mem=QgsVectorLayer('Polygon?crs=EPSG:3857','AE — quadro de localização','memory');f=QgsFeature();f.setGeometry(QgsGeometry.fromRect(bbox));mem.dataProvider().addFeatures([f]);mem.updateExtents()
+ dest=out/'contexto/quadro_ae.gpkg';opts=QgsVectorFileWriter.SaveVectorOptions();opts.driverName='GPKG';opts.layerName='quadro_ae'
+ assert QgsVectorFileWriter.writeAsVectorFormatV3(mem,str(dest),project.transformContext(),opts)[0]==QgsVectorFileWriter.NoError
+ layer=QgsVectorLayer(str(dest)+'|layername=quadro_ae',mem.name(),'ogr');assert layer.isValid()
+ expr="with_variable('w',max(bounds_width($geometry)*1.15,@map_scale*0.0045),with_variable('h',max(bounds_height($geometry)*1.15,@map_scale*0.0045),with_variable('c',centroid($geometry),make_polygon(make_line(make_point(x(@c)-@w/2,y(@c)-@h/2),make_point(x(@c)+@w/2,y(@c)-@h/2),make_point(x(@c)+@w/2,y(@c)+@h/2),make_point(x(@c)-@w/2,y(@c)+@h/2),make_point(x(@c)-@w/2,y(@c)-@h/2))))))"
+ assert not QgsExpression(expr).hasParserError(),QgsExpression(expr).parserErrorString()
+ gen=QgsGeometryGeneratorSymbolLayer.create({'geometryModifier':expr,'SymbolType':'Fill'})
+ gen.setSubSymbol(QgsFillSymbol.createSimple({'style':'no','outline_color':'#e31a1c','outline_width':'0.55','outline_width_unit':'MM','joinstyle':'miter'}));symbol=QgsFillSymbol();symbol.changeSymbolLayer(0,gen);layer.setRenderer(QgsSingleSymbolRenderer(symbol));layer.setCustomProperty('monitora_contexto',True);layer.setCustomProperty('referencia_nominal_mm',4.5)
+ project.addMapLayer(layer,False);project.layerTreeRoot().findGroup('Contexto dos localizadores').addLayer(layer)
+ return layer
+
 def visible_biomes(project,biomes,m,out,name,threshold):
  # Mesmo recorte/generalização no desenho e na legenda; base IBGE original preservada.
  frame=QgsGeometry.fromPolygonXY([[QgsPointXY(v.x(),v.y()) for v in m.visibleExtentPolygon()]])
@@ -192,6 +206,7 @@ def build(config_file):
   if original in by_name:by_name[original].setName(friendly)
  for layer in aes:layer.setName('Áreas Elegíveis'+(' — '+layer.name() if len(aes)>1 else ''))
  states,biomes,ae_marker,state_extent,palette=locator_layers(project,out,aes,crs)
+ ae_frame=ae_locator_frame(project,out,ae_marker)
  uc_locator=None
  if uc:
   uc_context=root/'02_relatorio/contexto_uc.gpkg'
@@ -245,8 +260,8 @@ def build(config_file):
   rx,rw=slots[0];label(layout,'Estados e biomas',rx+1,fy+1,rw-2,6,9,True)
   context_map=QgsLayoutItemMap(layout);layout.addLayoutItem(context_map);context_map.setId(name+'_estados_biomas');context_map.attemptMove(QgsLayoutPoint(rx+2,fy+8*factor));context_map.attemptResize(QgsLayoutSize(rw-4,35*factor));context_map.setCrs(states.crs());context_map.setLayers([ae_marker,states,biomes]);context_map.setKeepLayerSet(True);context_map.zoomToExtent(state_extent);context_map.setFrameEnabled(True)
   # Destaque da extensão das AEs garante localização legível mesmo em áreas pequenas.
-  overview=context_map.overview();overview.setLinkedMap(m);overview.setEnabled(True);overview.setFrameSymbol(QgsFillSymbol.createSimple({'color':'227,26,28,45','outline_color':'#e31a1c','outline_width':'0.5'}))
-  local_biomes,names_biomes,biome_audit=visible_biomes(project,biomes,context_map,out,name,float(cfg.get('bioma_min_mm2',.5)));names_biomes.sort();context_map.setLayers([ae_marker,states,local_biomes])
+  context_map.overview().setEnabled(False) # Quadro da AE, não da extensão temática principal.
+  local_biomes,names_biomes,biome_audit=visible_biomes(project,biomes,context_map,out,name,float(cfg.get('bioma_min_mm2',.5)));names_biomes.sort();context_map.setLayers([ae_frame,ae_marker,states,local_biomes])
   biome_cols=2 if rw>=54*factor else 1
   for j,bname in enumerate(names_biomes):
    bx=rx+2+(j%biome_cols)*(rw-4)/biome_cols;by=fy+51*factor+(j//biome_cols)*4.8*factor
