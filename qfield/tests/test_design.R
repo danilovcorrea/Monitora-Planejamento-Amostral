@@ -66,7 +66,7 @@ cfld<-c;cfld$max_estratos<-1;ok('limite_combinacoes',fails(mq_design_select(g,cf
 fi<-tempfile();dir.create(fi);writeLines(c('atributo;classe;percentual','fogo;0;70','fogo;1;30'),file.path(fi,'cotas.csv'));cfile<-c;cfile$cotas_atributos<-list();cfile$cotas_atributos_arquivo<-'cotas.csv';loaded<-mq_design_load(cfile,fi,report);ok('CSV_longo_margens',identical(loaded$cotas_atributos$fogo$classe,c('0','1'))&&identical(loaded$cotas_atributos$fogo$percentual,c(70,30)))
 # Formação florestal não é obstáculo para o alvo florestal, mas continua para o campestre.
 pp<-g[1:2,];st_geometry(pp)<-st_sfc(st_point(c(198000,8432000)),st_point(c(198200,8432000)),crs=31983);pp$mq_formacao<-c('campestre','florestal');pp$categoria<-'prioritario'
-fg<-st_sf(geometry=st_sfc(rect(197000,8431000,199000,8433000),crs=31983));fc<-MQ_CONFIG;fc$perfil<-'ilha';fc$incluir_formacao_florestal<-TRUE;mq_diagnostics(pp,list(list(x=fg,papel='formacao_florestal')),fg,fc,report);dg<-data.table::fread(file.path(report,'simulacoes_direcoes.csv'));ok('floresta_excecao_apenas_alvo_florestal',all(dg$conflito_formacao_florestal[dg$PA==pp$PA[1]])&&!any(dg$conflito_formacao_florestal[dg$PA==pp$PA[2]]))
+fg<-st_sf(geometry=st_sfc(rect(197000,8431000,199000,8433000),crs=31983));fc<-MQ_CONFIG;fc$perfil<-'ilha';fc$incluir_formacao_florestal<-TRUE;mq_diagnostics(pp,list(list(x=fg,papel='formacao_florestal')),fg,fc,report);ok('ilha_sem_procedimentos_campestres',file.exists(file.path(report,'procedimento_campo_nao_aplicado.txt')))
 cat('TOTAL_DESIGN_VALIDADO ',length(checks),' PASS\n',sep='')
 ua<-vg0;ua$UA<-paste0('UA',seq_len(nrow(ua)));ua$PA<-NULL;cv$formacao_campo<-'formacao'
 stopifnot(fails(mq_design_classify(ua,ls,cv,report)));conf<-data.table::fread(file.path(report,'conflitos_atributos.csv'))

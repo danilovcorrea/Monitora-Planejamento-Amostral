@@ -94,7 +94,7 @@ mq_entry <- function(root,c,mode,status) {
   e<-monitora_qfield_xml
   links<-c('01_qfield/pacote_qfield.zip'='Projeto para QField','01_qfield/projeto.qgs'='Projeto de navegação no QGIS','02_relatorio/relatorio_execucao.html'='Relatório de execução','03_vetores'='Vetores GPKG, KML e KMZ','04_csv'='Tabelas CSV')
   if(c$gerar_cartografia)links<-c(links,'05_qgis/projeto_edicao.qgz'='Projeto QGIS editável e quatro layouts','mapas_pdf'='Quatro mapas PDF georreferenciados','mapas_png'='Quatro mapas PNG')
-  writeLines(c('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Monitora — entrega</title><style>body{font:18px/1.6 sans-serif;max-width:900px;margin:40px auto;padding:20px;color:#174b3b}</style>',paste0('<h1>',e(c$projeto),'</h1><p>v0.4.1 · ',e(mode),' · ',e(status),'</p><ul>'),paste0('<li><a href="',names(links),'">',links,'</a></li>'),'</ul><p>Edite os vetores em 05_qgis. Essas alterações não modificam o pacote QField, os CSV/KML ou mapas já exportados. Reexporte os layouts após editar. Preserve a pasta completa para manter as imagens compartilhadas e os caminhos relativos.</p></html>'),file.path(root,'ABRA_AQUI.html'))
+  writeLines(c('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Monitora — entrega</title><style>body{font:18px/1.6 sans-serif;max-width:900px;margin:40px auto;padding:20px;color:#174b3b}</style>',paste0('<h1>',e(c$projeto),'</h1><p>v0.4.2 · ',e(mode),' · ',e(status),'</p><ul>'),paste0('<li><a href="',names(links),'">',links,'</a></li>'),'</ul><p>Edite os vetores em 05_qgis. Essas alterações não modificam o pacote QField, os CSV/KML ou mapas já exportados. Reexporte os layouts após editar. Preserve a pasta completa para manter as imagens compartilhadas e os caminhos relativos.</p></html>'),file.path(root,'ABRA_AQUI.html'))
 }
 # Composição source-over: a primeira fonte local prevalece; transparências são preenchidas.
 mq_alpha_over <- function(front,back) {
@@ -241,7 +241,7 @@ mq_cartography <- function(layers,ras,ae,c,root,scratch) {
   mq_locator_base(c,root)
   message('Cartografia QGIS: quatro layouts, PDFs georreferenciados e PNGs. Aguarde a renderização.')
   project_root<-if(c$qgis_runtime$windows&&.Platform$OS.type!='windows')system2('wslpath',c('-w',shQuote(root)),stdout=TRUE)else root
-  config<-file.path(scratch,'cartografia.json');mq_json(list(root=project_root,projeto=c$projeto,dpi=c$mapas_dpi,papel=c$mapas_papel,elaboracao=c$elaboracao,camadas=lapply(layers,function(l)list(nome=l$nome,papel=l$papel))),config)
+  config<-file.path(scratch,'cartografia.json');mq_json(list(root=project_root,projeto=c$projeto,bioma_min_mm2=c$localizador_bioma_min_mm2,dpi=c$mapas_dpi,papel=c$mapas_papel,elaboracao=c$elaboracao,camadas=lapply(layers,function(l)list(nome=l$nome,papel=l$papel))),config)
   mq_qgis_call(c$qgis_runtime,file.path(scratch,'cartografia_qgis.py'),'build',config,file.path(root,'02_relatorio','qgis_cartografia.log'))
   evidence<-jsonlite::read_json(file.path(root,'02_relatorio/cartografia.json'));if(evidence$status!='PASS'||length(evidence$mapas)!=4)mq_stop('Cartografia não validada.')
 }

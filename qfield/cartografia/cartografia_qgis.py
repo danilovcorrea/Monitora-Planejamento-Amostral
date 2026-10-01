@@ -107,6 +107,21 @@ def locator_layers(project,out,aes,crs):
  group.setExpanded(False)
  return states,biomes,marker,extent,palette
 
+def visible_biomes(project,biomes,m,out,name,threshold):
+ # Mesmo recorte/generalização no desenho e na legenda; base IBGE original preservada.
+ frame=QgsGeometry.fromPolygonXY([[QgsPointXY(v.x(),v.y()) for v in m.visibleExtentPolygon()]])
+ mem=QgsVectorLayer('MultiPolygon?crs='+biomes.crs().authid(),'Biomas — '+name,'memory');mem.dataProvider().addAttributes(biomes.fields());mem.updateFields();audit=[]
+ for f in biomes.getFeatures():
+  cut=f.geometry().intersection(frame);area=cut.area()/frame.area()*m.sizeWithUnits().width()*m.sizeWithUnits().height();show=area>0 and area>=threshold
+  audit.append({'bioma':str(f['nome']),'area_papel_mm2':area,'representado':show})
+  if show:
+   cut.convertToMultiType();item=QgsFeature(mem.fields());item.setAttributes(f.attributes());item.setGeometry(cut);assert mem.dataProvider().addFeatures([item])[0]
+ mem.updateExtents();dest=out/'contexto'/('biomas_'+name+'.gpkg');opts=QgsVectorFileWriter.SaveVectorOptions();opts.driverName='GPKG';opts.layerName='biomas'
+ assert QgsVectorFileWriter.writeAsVectorFormatV3(mem,str(dest),project.transformContext(),opts)[0]==QgsVectorFileWriter.NoError
+ layer=QgsVectorLayer(str(dest)+'|layername=biomas',mem.name(),'ogr');assert layer.isValid();layer.setRenderer(biomes.renderer().clone());layer.setCustomProperty('monitora_contexto',True)
+ project.addMapLayer(layer,False);project.layerTreeRoot().findGroup('Contexto dos localizadores').addLayer(layer)
+ return layer,[v['bioma'] for v in audit if v['representado']],audit
+
 def build(config_file):
  cfg=json.loads(Path(config_file).read_text(encoding='utf-8'));root=Path(cfg['root']);out=root/'05_qgis';out.mkdir(exist_ok=True);assets=out/'recursos';assets.mkdir(exist_ok=True)
  project=QgsProject.instance();assert project.read(str(root/'01_qfield/projeto.qgs'))
@@ -196,7 +211,7 @@ def build(config_file):
   context_map=QgsLayoutItemMap(layout);layout.addLayoutItem(context_map);context_map.setId(name+'_estados_biomas');context_map.attemptMove(QgsLayoutPoint(rx+2,fy+7*factor));context_map.attemptResize(QgsLayoutSize(rw-4,35*factor));context_map.setCrs(states.crs());context_map.setLayers([ae_marker,states,biomes]);context_map.setKeepLayerSet(True);context_map.zoomToExtent(state_extent);context_map.setFrameEnabled(True)
   # Destaque da extensão das AEs garante localização legível mesmo em áreas pequenas.
   overview=context_map.overview();overview.setLinkedMap(m);overview.setEnabled(True);overview.setFrameSymbol(QgsFillSymbol.createSimple({'color':'227,26,28,45','outline_color':'#e31a1c','outline_width':'0.5'}))
-  names_biomes=sorted({str(f['nome']) for f in biomes.getFeatures() if f.geometry().intersects(QgsGeometry.fromRect(context_map.extent()))})
+  local_biomes,names_biomes,biome_audit=visible_biomes(project,biomes,context_map,out,name,float(cfg.get('bioma_min_mm2',.5)));names_biomes.sort();context_map.setLayers([ae_marker,states,local_biomes])
   for j,bname in enumerate(names_biomes):
    bx=rx+2+(j%2)*(rw-4)/2;by=fy+43*factor+(j//2)*3.5*factor
    chip=QgsLayoutItemShape(layout);chip.setShapeType(QgsLayoutItemShape.Rectangle);chip.setSymbol(QgsFillSymbol.createSimple({'color':palette.get(normalize_name(bname),'#ECE8DC'),'outline_color':'#8A806D','outline_width':'0.1'}));layout.addLayoutItem(chip);chip.attemptMove(QgsLayoutPoint(bx,by+.6));chip.attemptResize(QgsLayoutSize(2,2));label(layout,bname,bx+2.5,by,(rw-4)/2-2.5,3.5,5.7)
@@ -219,7 +234,7 @@ def build(config_file):
    if v==uc and len(uc_names)>1:QgsLegendRenderer.setNodeLegendStyle(node,QgsLegendStyle.Hidden)
   legend.setStyleFont(QgsLegendStyle.Title,QFont('Arial',8,QFont.Bold));legend.setStyleFont(QgsLegendStyle.SymbolLabel,QFont('Arial',7));layout.addLayoutItem(legend);legend.attemptMove(QgsLayoutPoint(lx+1,fy+1));legend.attemptResize(QgsLayoutSize(lw-2,fh-2));legend.setResizeToContents(False)
   note=f"{crs.authid()} · escala 1:{round(m.scale()):,}".replace(',','.')
-  info=note+'\nAEs e pontos: dados fornecidos.\n'+('UCs federais: ICMBio.\n' if uc else '')+'Estados e biomas: IBGE, 2025.\nSentinel-2 L2A · RGB nativo 10 m.\nDatas: '+(date_label or 'não informadas')+'.\nCopernicus Sentinel / AWS Earth Search.\nPA: local planejado; não é UA instalada.\nElaboração: '+cfg['elaboracao']+'\n'+datetime.date.today().isoformat()+' · Monitora QField v0.4.1\nFontes e métodos: 02_relatorio.'
+  info=note+'\nAEs e pontos: dados fornecidos.\n'+('UCs federais: ICMBio.\n' if uc else '')+'Estados e biomas: IBGE, 2025.\nSentinel-2 L2A · RGB nativo 10 m.\nDatas: '+(date_label or 'não informadas')+'.\nCopernicus Sentinel / AWS Earth Search.\nPA: local planejado; não é UA instalada.\nElaboração: '+cfg['elaboracao']+'\n'+datetime.date.today().isoformat()+' · Monitora QField v0.4.2\nFontes e métodos: 02_relatorio.'
   label(layout,'Informações do mapa',ix+1,fy+1,iw-2,5,7,True);label(layout,info,ix+1.5,fy+7,iw-3,fh-8,6.5)
   for j,n in enumerate(['monitora','cbc','icmbio']):
    im=QgsLayoutItemPicture(layout);im.setId(name+'_logo_'+n);layout.addLayoutItem(im);im.attemptMove(QgsLayoutPoint(gx+1.5,fy+(2+j*18)*factor));im.attemptResize(QgsLayoutSize(gw-3,15*factor));im.setPicturePath(str(assets/f'logo_{n}.png'));im.setPictureAnchor(QgsLayoutItemPicture.Middle)
@@ -249,7 +264,7 @@ def build(config_file):
   (png.with_suffix('.prj')).write_text(crs.toWkt(),encoding='utf-8')
   gt_png=[c-a/2-b/2,a,b,f-d/2-e/2,d,e];Path(str(png)+'.aux.xml').write_text('<PAMDataset><SRS>'+escape(crs.toWkt())+'</SRS><GeoTransform>'+','.join(format(v,'.16g') for v in gt_png)+'</GeoTransform></PAMDataset>',encoding='utf-8')
   ds=gdal.Open(str(png));assert ds.GetProjection() and ds.GetGeoTransform();ds=None
-  audits.append({'mapa':name,'tema':title,'sem_feicoes':missing,'escala':m.scale(),'extent':[m.extent().xMinimum(),m.extent().yMinimum(),m.extent().xMaximum(),m.extent().yMaximum()],'mapa_principal_uuid':m.uuid(),'rotulos':label_info,'pdf':evidence,'camadas':[v.name() for v in maplayers],'legenda':legend_names,'ucs':uc_names,'localizadores':(['estados_biomas','uc'] if uc else ['estados_biomas']),'contexto_uf':states.customProperty('monitora_uf_contexto')})
+  audits.append({'mapa':name,'tema':title,'sem_feicoes':missing,'escala':m.scale(),'extent':[m.extent().xMinimum(),m.extent().yMinimum(),m.extent().xMaximum(),m.extent().yMaximum()],'mapa_principal_uuid':m.uuid(),'rotulos':label_info,'pdf':evidence,'camadas':[v.name() for v in maplayers],'legenda':legend_names,'ucs':uc_names,'localizadores':(['estados_biomas','uc'] if uc else ['estados_biomas']),'contexto_uf':states.customProperty('monitora_uf_contexto'),'biomas_localizador':biome_audit,'biomas_legenda':names_biomes,'bioma_min_mm2':float(cfg.get('bioma_min_mm2',.5))})
  # Exibição inicial de edição inclui todas as referências e fundos offline.
  for node in project.layerTreeRoot().findLayers():node.setItemVisibilityChecked(node.layer().name()!='Google Satellite' and not node.layer().customProperty('monitora_contexto',False))
  project.viewSettings().setDefaultViewExtent(QgsReferencedRectangle(extent_of(None,ae_extent),crs))
