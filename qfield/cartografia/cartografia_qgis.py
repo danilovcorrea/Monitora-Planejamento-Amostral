@@ -1,11 +1,11 @@
 """Renderizador QGIS incorporado ao R. Sem dependência de rede na cartografia."""
-import os,sys,json,math,shutil,hashlib,datetime
+import os,sys,json,math,shutil,hashlib,datetime,re,unicodedata,textwrap
 from xml.sax.saxutils import escape
 from pathlib import Path
 os.environ['QT_QPA_PLATFORM']='windows' if os.name=='nt' else 'offscreen'
 from qgis.core import *
 from qgis.PyQt.QtCore import QSize,Qt
-from qgis.PyQt.QtGui import QColor,QFont
+from qgis.PyQt.QtGui import QColor,QFont,QImage
 from osgeo import gdal,osr
 app=QgsApplication([],False);app.initQgis();gdal.UseExceptions()
 
@@ -30,7 +30,7 @@ def probe(output):
  evidence=check_pdf(f,project.crs());f.unlink();dump({'status':'PASS','QGIS':Qgis.QGIS_VERSION,'GDAL':gdal.VersionInfo(),'PDF':evidence},output)
 
 def label(layout,text,x,y,w,h,size=9,bold=False,color='#174b3b'):
- item=QgsLayoutItemLabel(layout);item.setText(text);item.setFont(QFont('Arial',size,QFont.Bold if bold else QFont.Normal));item.setFontColor(QColor(color));layout.addLayoutItem(item);item.attemptMove(QgsLayoutPoint(x,y));item.attemptResize(QgsLayoutSize(w,h));return item
+ item=QgsLayoutItemLabel(layout);item.setText(text);font=QFont('Arial');font.setPointSizeF(size);font.setBold(bold);item.setFont(font);item.setFontColor(QColor(color));layout.addLayoutItem(item);item.attemptMove(QgsLayoutPoint(x,y));item.attemptResize(QgsLayoutSize(w,h));return item
 
 def box(layout,x,y,w,h):
  item=QgsLayoutItemShape(layout);item.setShapeType(QgsLayoutItemShape.Rectangle);item.setSymbol(QgsFillSymbol.createSimple({'color':'248,250,248,255','outline_color':'120,140,130,255','outline_width':'0.15'}));layout.addLayoutItem(item);item.attemptMove(QgsLayoutPoint(x,y));item.attemptResize(QgsLayoutSize(w,h));return item
@@ -58,6 +58,54 @@ def choose_labels(layer,extent,w,h,project):
   if (visible,size)>best:best=(visible,size)
   if visible==total:break
  style_labels(layer,best[1]);return {'fonte_pt':best[1],'rotulos_previa':best[0],'total':total}
+
+def uc_title(feature):
+ # Sigla e categoria vêm da mesma base federal; não inferir sigla pelo nome.
+ fields=feature.fields().names()
+ assert all(n in fields for n in ['nomeuc','sigla_cate','categoria_']),'Base federal sem campos de nome/categoria/sigla'
+ name=str(feature['nomeuc']).strip();sigla=str(feature['sigla_cate']).strip();category=str(feature['categoria_']).strip()
+ assert name and sigla and sigla!='NULL','UC federal sem identificação'
+ suffix=re.sub(r'^'+re.escape(category)+r'\s*','',name,flags=re.I)
+ suffix=re.sub(r'^'+re.escape(sigla)+r'\s*','',suffix,flags=re.I).title()
+ suffix=re.sub(r'\b(Da|Das|De|Do|Dos|E)\b',lambda m:m[0].lower(),suffix)
+ return sigla.upper()+' '+suffix
+
+def normalize_name(value):
+ return ''.join(c for c in unicodedata.normalize('NFD',value.upper()) if not unicodedata.combining(c))
+
+def locator_layers(project,out,aes,crs):
+ path=out/'contexto/contexto_ibge.gpkg';assert path.is_file(),'Base IBGE do localizador ausente'
+ states=QgsVectorLayer(str(path)+'|layername=estados','Estados — IBGE 2025','ogr');biomes=QgsVectorLayer(str(path)+'|layername=biomas','Biomas — IBGE 2025','ogr')
+ assert states.isValid() and biomes.isValid()
+ palette={'AMAZONIA':'#C6DFC5','CAATINGA':'#EAD6B1','CERRADO':'#DDE3B2','MATA ATLANTICA':'#BFD8C8','PAMPA':'#D5DFBB','PANTANAL':'#C7DCE1'}
+ cats=[]
+ for name in sorted({str(f['nome']) for f in biomes.getFeatures()}):
+  color=palette.get(normalize_name(name),'#ECE8DC');cats.append(QgsRendererCategory(name,QgsFillSymbol.createSimple({'color':color,'outline_color':'#8A806D','outline_width':'0.12'}),name))
+ biomes.setRenderer(QgsCategorizedSymbolRenderer('nome',cats))
+ states.setRenderer(QgsSingleSymbolRenderer(QgsFillSymbol.createSimple({'color':'255,255,255,0','outline_color':'#455a64','outline_width':'0.15'})))
+ labels=QgsPalLayerSettings();labels.fieldName='nome';fmt=QgsTextFormat();fmt.setFont(QFont('Arial',6));fmt.setSize(6);fmt.setColor(QColor('#455a64'));buf=QgsTextBufferSettings();buf.setEnabled(True);buf.setColor(QColor('white'));buf.setSize(.35);fmt.setBuffer(buf);labels.setFormat(fmt);states.setLabeling(QgsVectorLayerSimpleLabeling(labels));states.setLabelsEnabled(True)
+ geom=QgsGeometry.unaryUnion([f.geometry() for a in aes for f in a.getFeatures()]);geom.transform(QgsCoordinateTransform(crs,states.crs(),project))
+ original=QgsVectorLayer(str(path)+'|layername=estados_identificacao','Identificação de estados','ogr');assert original.isValid()
+ selected=[f for f in original.getFeatures() if f.geometry().intersects(geom)]
+ extent=QgsRectangle(selected[0].geometry().boundingBox()) if selected else QgsRectangle(geom.boundingBox())
+ for f in selected[1:]:extent.combineExtentWith(f.geometry().boundingBox())
+ if not selected:extent=QgsRectangle(extent.center().x()-2,extent.center().y()-2,extent.center().x()+2,extent.center().y()+2)
+ states.setCustomProperty('monitora_uf_contexto',','.join(str(f['nome']) for f in selected) or 'AEs sem interseção com a malha estadual original')
+ extent.scale(1.15)
+ marker=QgsVectorLayer('MultiPolygon?crs='+crs.authid(),'Áreas Elegíveis — localização','memory');
+ for a in aes:
+  for f in a.getFeatures():
+   item=QgsFeature();item.setGeometry(f.geometry());assert marker.dataProvider().addFeatures([item])[0]
+ marker.updateExtents()
+ # Persistir referência reduzida no projeto de edição; não modifica os polígonos de campo.
+ opts=QgsVectorFileWriter.SaveVectorOptions();opts.driverName='GPKG';opts.layerName='areas_elegiveis';dest=out/'contexto/localizacao_ae.gpkg'
+ assert QgsVectorFileWriter.writeAsVectorFormatV3(marker,str(dest),project.transformContext(),opts)[0]==QgsVectorFileWriter.NoError
+ marker=QgsVectorLayer(str(dest)+'|layername=areas_elegiveis','Áreas Elegíveis — localização','ogr');marker.setRenderer(QgsSingleSymbolRenderer(QgsFillSymbol.createSimple({'color':'#e31a1c','outline_color':'#a40000','outline_width':'0.6'})))
+ group=project.layerTreeRoot().addGroup('Contexto dos localizadores')
+ for layer in [marker,states,biomes]:
+  layer.setCustomProperty('monitora_contexto',True);project.addMapLayer(layer,False);group.addLayer(layer)
+ group.setExpanded(False)
+ return states,biomes,marker,extent,palette
 
 def build(config_file):
  cfg=json.loads(Path(config_file).read_text(encoding='utf-8'));root=Path(cfg['root']);out=root/'05_qgis';out.mkdir(exist_ok=True);assets=out/'recursos';assets.mkdir(exist_ok=True)
@@ -88,6 +136,25 @@ def build(config_file):
  for v in aes[1:]:ae_extent.combineExtentWith(v.extent())
  uc=by_name.get('UC');grid=by_name.get('grade_amostral');regional=by_name.get('sat_escala_regional')
  assert regional is not None,'Base regional ausente'
+ uc_names=[]
+ if uc:
+  ae_union=QgsGeometry.unaryUnion([f.geometry() for a in aes for f in a.getFeatures()]);uc_features=[f for f in uc.getFeatures() if str(f['esferaadm']).casefold()=='federal' and f.geometry().intersection(ae_union).area()>0]
+  if not uc_features:project.removeMapLayer(uc.id());uc=None
+  else:
+   uc_names=[uc_title(f) for f in uc_features];ids=','.join("'"+str(f['cnuc']).replace("'","''")+"'" for f in uc_features)
+   if len(uc_features)!=uc.featureCount():
+    assert uc.setSubsetString('"cnuc" IN ('+ids+')');uc.reload()
+   symbol=uc.renderer().symbol().clone()
+   if len(uc_names)>1:uc.setRenderer(QgsCategorizedSymbolRenderer('cnuc',[QgsRendererCategory(str(f['cnuc']),symbol.clone(),uc_title(f)) for f in uc_features]))
+   uc.setName(uc_names[0] if len(uc_names)==1 else 'Unidades de Conservação federais')
+ for original,friendly in [('grade_amostral','Grade Amostral'),('PA_priorit','Pontos Amostrais prioritários'),('PA_altern','Pontos Amostrais alternativos')]:
+  if original in by_name:by_name[original].setName(friendly)
+ for layer in aes:layer.setName('Áreas Elegíveis'+(' — '+layer.name() if len(aes)>1 else ''))
+ states,biomes,ae_marker,state_extent,palette=locator_layers(project,out,aes,crs)
+ uc_locator=None
+ if uc:
+  uc_locator=uc.clone();uc_locator.setName(uc.name()+' — localizador');uc_locator.setCustomProperty('monitora_contexto',True);project.addMapLayer(uc_locator,False);project.layerTreeRoot().findGroup('Contexto dos localizadores').addLayer(uc_locator)
+
  for v in aes+[uc,grid]:
   if v:v.setLabelsEnabled(False)
  if grid:
@@ -99,7 +166,7 @@ def build(config_file):
   print(f'Cartografia {idx+1}/4: {title}',flush=True)
   layout=QgsPrintLayout(project);layout.initializeDefaults();layout.setName(name);page=layout.pageCollection().page(0);page.setPageSize(QgsLayoutSize(210*factor,297*factor));layout.renderContext().setDpi(dpi)
   e=extent_of(None,ae_extent) if idx==0 else extent_of(target,ae_extent);landscape=e.width()>e.height()*1.15
-  width,height=(297*factor,210*factor) if landscape else (210*factor,297*factor);page.setPageSize(QgsLayoutSize(width,height));fx=width/210;mx,my,mw,mh=13*factor,29*factor,width-26*factor,height-92*factor
+  width,height=(297*factor,210*factor) if landscape else (210*factor,297*factor);page.setPageSize(QgsLayoutSize(width,height));fx=width/210;mx,my,mw,mh=13*factor,29*factor,width-26*factor,height-105*factor
   label(layout,title,13*factor,5*factor,mw,9*factor,15,True);label(layout,cfg['projeto'],13*factor,15*factor,mw,9*factor,10)
   m=QgsLayoutItemMap(layout);layout.addLayoutItem(m);m.setId(name+'_principal');m.attemptMove(QgsLayoutPoint(mx,my));m.attemptResize(QgsLayoutSize(mw,mh));m.setCrs(crs);m.setFrameEnabled(True);m.zoomToExtent(e);layout.setReferenceMap(m)
   vectors=[v for v in vectors if v is not None];maplayers=vectors+[regional]
@@ -119,19 +186,43 @@ def build(config_file):
   power=10**math.floor(math.log10(interval));interval=min([v*power for v in [1,2,5,10]],key=lambda x:abs(x-interval));gr.setIntervalX(interval);gr.setIntervalY(interval);gr.setStyle(QgsLayoutItemMapGrid.FrameAnnotationsOnly);gr.setAnnotationEnabled(True);gr.setAnnotationFormat(QgsLayoutItemMapGrid.DecimalWithSuffix);gr.setAnnotationPrecision(max(2,-int(math.floor(math.log10(interval)))+1));gr.setAnnotationFont(QFont('Arial',7));gr.setFrameStyle(QgsLayoutItemMapGrid.ExteriorTicks);gr.setAnnotationDirection(QgsLayoutItemMapGrid.VerticalDescending,QgsLayoutItemMapGrid.Left);gr.setAnnotationDirection(QgsLayoutItemMapGrid.VerticalDescending,QgsLayoutItemMapGrid.Right)
   scale=QgsLayoutItemScaleBar(layout);scale.setStyle('Single Box');scale.setLinkedMap(m);scale.applyDefaultSize();scale.setUnits(Qgis.DistanceUnit.Kilometers);scale.setUnitsPerSegment(max(.1,10**math.floor(math.log10(m.extent().width()/6000))));scale.setNumberOfSegments(2);scale.setNumberOfSegmentsLeft(0);scale.setUnitLabel('km');scale.setFont(QFont('Arial',8));scale.setBackgroundEnabled(True);scale.setBackgroundColor(QColor(255,255,255,210));layout.addLayoutItem(scale);scale.attemptMove(QgsLayoutPoint(mx+2,my+mh-11))
   pic=QgsLayoutItemPicture(layout);layout.addLayoutItem(pic);pic.attemptMove(QgsLayoutPoint(mx+mw-12,my+2));pic.attemptResize(QgsLayoutSize(9,18));pic.setPicturePath(str(north));pic.setLinkedMap(m);pic.setNorthMode(QgsLayoutItemPicture.TrueNorth)
-  fy=height-51*factor;fh=43*factor
-  # Faixa inferior: localizador, legenda, metadados, marcas institucionais.
-  for x,w in [(8,43),(54,42),(99,79),(181,21)]:box(layout,x*fx,fy,w*fx,fh)
-  label(layout,'Localizador',9*fx,fy+1,40*fx,5*factor,8,True)
-  loc=QgsLayoutItemMap(layout);layout.addLayoutItem(loc);loc.setId(name+'_localizador');loc.attemptMove(QgsLayoutPoint(10*fx,fy+7*factor));loc.attemptResize(QgsLayoutSize(39*fx,33*factor));loc.setCrs(crs);loc.setLayers([v for v in aes+[uc,regional] if v is not None]);loc.setKeepLayerSet(True);loc.zoomToExtent(extent_of(uc,ae_extent));loc.overview().setLinkedMap(m);loc.overview().setEnabled(True);loc.setFrameEnabled(True)
-  legend=QgsLayoutItemLegend(layout);legend.setTitle('Legenda');legend.setLinkedMap(m);legend.setAutoUpdateModel(False);legend.model().rootGroup().clear()
-  for v in vectors:legend.model().rootGroup().addLayer(v)
-  legend.setStyleFont(QgsLegendStyle.Title,QFont('Arial',8,QFont.Bold));legend.setStyleFont(QgsLegendStyle.SymbolLabel,QFont('Arial',7));layout.addLayoutItem(legend);legend.attemptMove(QgsLayoutPoint(55*fx,fy+1));legend.attemptResize(QgsLayoutSize(40*fx,fh-2));legend.setResizeToContents(False)
-  note=f"CRS: {crs.authid()} · escala 1:{round(m.scale()):,}".replace(',','.')
-  info='Informações do mapa\n'+note+'\nVetores: entrada do usuário; UC: ICMBio.\nImagem regional: Sentinel-2 L2A; RGB nativo 10 m.\nDatas RGB: '+(date_label or 'não informadas')+'.\nCrédito: Copernicus Sentinel / AWS Earth Search.\nFontes e processamento: 02_relatorio.\nPAs indicam locais planejados, não UAs instaladas.\nElaboração: '+cfg['elaboracao']+'\n'+datetime.date.today().isoformat()+' · Monitora QField v0.4.0'
-  label(layout,info,101*fx,fy+1,75*fx,fh-2,7)
+  fy=height-64*factor;fh=56*factor
+  # Faixa inferior: dois localizadores quando existe UC; caixas adaptadas à página.
+  margin=8*factor;gap=2*factor;available=width-2*margin
+  weights=([42,32,45,55,18] if uc else [62,52,60,18]);unit=(available-gap*(len(weights)-1))/sum(weights);slots=[];xx=margin
+  for ww in weights:slots.append((xx,ww*unit));xx+=ww*unit+gap
+  for xx,ww in slots:box(layout,xx,fy,ww,fh)
+  rx,rw=slots[0];label(layout,'Estados e biomas',rx+1,fy+1,rw-2,5,7,True)
+  context_map=QgsLayoutItemMap(layout);layout.addLayoutItem(context_map);context_map.setId(name+'_estados_biomas');context_map.attemptMove(QgsLayoutPoint(rx+2,fy+7*factor));context_map.attemptResize(QgsLayoutSize(rw-4,35*factor));context_map.setCrs(states.crs());context_map.setLayers([ae_marker,states,biomes]);context_map.setKeepLayerSet(True);context_map.zoomToExtent(state_extent);context_map.setFrameEnabled(True)
+  # Destaque da extensão das AEs garante localização legível mesmo em áreas pequenas.
+  overview=context_map.overview();overview.setLinkedMap(m);overview.setEnabled(True);overview.setFrameSymbol(QgsFillSymbol.createSimple({'color':'227,26,28,45','outline_color':'#e31a1c','outline_width':'0.5'}))
+  names_biomes=sorted({str(f['nome']) for f in biomes.getFeatures() if f.geometry().intersects(QgsGeometry.fromRect(context_map.extent()))})
+  for j,bname in enumerate(names_biomes):
+   bx=rx+2+(j%2)*(rw-4)/2;by=fy+43*factor+(j//2)*3.5*factor
+   chip=QgsLayoutItemShape(layout);chip.setShapeType(QgsLayoutItemShape.Rectangle);chip.setSymbol(QgsFillSymbol.createSimple({'color':palette.get(normalize_name(bname),'#ECE8DC'),'outline_color':'#8A806D','outline_width':'0.1'}));layout.addLayoutItem(chip);chip.attemptMove(QgsLayoutPoint(bx,by+.6));chip.attemptResize(QgsLayoutSize(2,2));label(layout,bname,bx+2.5,by,(rw-4)/2-2.5,3.5,5.7)
+  marker_label=label(layout,'Áreas Elegíveis em vermelho',rx+2,fy+38*factor,rw-4,4,5.7,color='#a40000');marker_label.setBackgroundEnabled(True);marker_label.setBackgroundColor(QColor(255,255,255,220))
+  if uc:
+   ux,uw=slots[1];label(layout,'Localização na UC',ux+1,fy+1,uw-2,5,7,True)
+   loc=QgsLayoutItemMap(layout);layout.addLayoutItem(loc);loc.setId(name+'_localizador_uc');loc.attemptMove(QgsLayoutPoint(ux+2,fy+7*factor));loc.attemptResize(QgsLayoutSize(uw-4,46*factor));loc.setCrs(crs);loc.setLayers(aes+[uc_locator,regional]);loc.setKeepLayerSet(True);local_styles={}
+   for v in aes+[uc_locator,regional]:
+    style=QgsMapLayerStyle();style.readFromLayer(v);local_styles[v.id()]=style.xmlData()
+   loc.setLayerStyleOverrides(local_styles);loc.setKeepLayerStyles(True);loc.zoomToExtent(extent_of(uc,ae_extent));loc.overview().setLinkedMap(m);loc.overview().setEnabled(True);loc.setFrameEnabled(True)
+  lx,lw=slots[-3];ix,iw=slots[-2];gx,gw=slots[-1]
+  legend=QgsLayoutItemLegend(layout);legend.setId(name+'_legenda');legend.setTitle('Legenda');legend.setLinkedMap(m);legend.setAutoUpdateModel(False);legend.model().rootGroup().clear();legend.setWrapString('\n')
+  legend_names=[];ae_added=False
+  for v in vectors:
+   if v in aes:
+    if ae_added:continue
+    ae_added=True;title_legend='Áreas Elegíveis'
+   else:title_legend=v.name()
+   node=legend.model().rootGroup().addLayer(v);node.setName(textwrap.fill(title_legend,width=max(22,int((lw-9)/1.05))));legend_names.append(title_legend)
+   if v==uc and len(uc_names)>1:QgsLegendRenderer.setNodeLegendStyle(node,QgsLegendStyle.Hidden)
+  legend.setStyleFont(QgsLegendStyle.Title,QFont('Arial',8,QFont.Bold));legend.setStyleFont(QgsLegendStyle.SymbolLabel,QFont('Arial',7));layout.addLayoutItem(legend);legend.attemptMove(QgsLayoutPoint(lx+1,fy+1));legend.attemptResize(QgsLayoutSize(lw-2,fh-2));legend.setResizeToContents(False)
+  note=f"{crs.authid()} · escala 1:{round(m.scale()):,}".replace(',','.')
+  info=note+'\nAEs e pontos: dados fornecidos.\n'+('UCs federais: ICMBio.\n' if uc else '')+'Estados e biomas: IBGE, 2025.\nSentinel-2 L2A · RGB nativo 10 m.\nDatas: '+(date_label or 'não informadas')+'.\nCopernicus Sentinel / AWS Earth Search.\nPA: local planejado; não é UA instalada.\nElaboração: '+cfg['elaboracao']+'\n'+datetime.date.today().isoformat()+' · Monitora QField v0.4.1\nFontes e métodos: 02_relatorio.'
+  label(layout,'Informações do mapa',ix+1,fy+1,iw-2,5,7,True);label(layout,info,ix+1.5,fy+7,iw-3,fh-8,6.5)
   for j,n in enumerate(['monitora','cbc','icmbio']):
-   p=assets/f'logo_{n}.png';im=QgsLayoutItemPicture(layout);layout.addLayoutItem(im);im.attemptMove(QgsLayoutPoint(183*fx,fy+(2+j*13)*factor));im.attemptResize(QgsLayoutSize(17*fx,11*factor));im.setPicturePath(str(p))
+   im=QgsLayoutItemPicture(layout);im.setId(name+'_logo_'+n);layout.addLayoutItem(im);im.attemptMove(QgsLayoutPoint(gx+1.5,fy+(2+j*18)*factor));im.attemptResize(QgsLayoutSize(gw-3,15*factor));im.setPicturePath(str(assets/f'logo_{n}.png'));im.setPictureAnchor(QgsLayoutItemPicture.Middle)
   missing=target is None or target.featureCount()==0
   if missing:label(layout,'Sem feições fornecidas para este tema; referência: Áreas Elegíveis.',mx+2,my+2,mw-4,8,9,True)
   project.layoutManager().addLayout(layout)
@@ -158,9 +249,9 @@ def build(config_file):
   (png.with_suffix('.prj')).write_text(crs.toWkt(),encoding='utf-8')
   gt_png=[c-a/2-b/2,a,b,f-d/2-e/2,d,e];Path(str(png)+'.aux.xml').write_text('<PAMDataset><SRS>'+escape(crs.toWkt())+'</SRS><GeoTransform>'+','.join(format(v,'.16g') for v in gt_png)+'</GeoTransform></PAMDataset>',encoding='utf-8')
   ds=gdal.Open(str(png));assert ds.GetProjection() and ds.GetGeoTransform();ds=None
-  audits.append({'mapa':name,'tema':title,'sem_feicoes':missing,'escala':m.scale(),'extent':[m.extent().xMinimum(),m.extent().yMinimum(),m.extent().xMaximum(),m.extent().yMaximum()],'mapa_principal_uuid':m.uuid(),'rotulos':label_info,'pdf':evidence,'camadas':[v.name() for v in maplayers]})
+  audits.append({'mapa':name,'tema':title,'sem_feicoes':missing,'escala':m.scale(),'extent':[m.extent().xMinimum(),m.extent().yMinimum(),m.extent().xMaximum(),m.extent().yMaximum()],'mapa_principal_uuid':m.uuid(),'rotulos':label_info,'pdf':evidence,'camadas':[v.name() for v in maplayers],'legenda':legend_names,'ucs':uc_names,'localizadores':(['estados_biomas','uc'] if uc else ['estados_biomas']),'contexto_uf':states.customProperty('monitora_uf_contexto')})
  # Exibição inicial de edição inclui todas as referências e fundos offline.
- for node in project.layerTreeRoot().findLayers():node.setItemVisibilityChecked(node.layer().name()!='Google Satellite')
+ for node in project.layerTreeRoot().findLayers():node.setItemVisibilityChecked(node.layer().name()!='Google Satellite' and not node.layer().customProperty('monitora_contexto',False))
  project.viewSettings().setDefaultViewExtent(QgsReferencedRectangle(extent_of(None,ae_extent),crs))
  assert project.write(),'Falha ao salvar QGZ'
  for p,h in source_hash.items():assert sha(p)==h,'Edição alterou fonte QField'

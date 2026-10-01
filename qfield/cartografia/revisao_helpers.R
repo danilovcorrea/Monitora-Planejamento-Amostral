@@ -94,7 +94,7 @@ mq_entry <- function(root,c,mode,status) {
   e<-monitora_qfield_xml
   links<-c('01_qfield/pacote_qfield.zip'='Projeto para QField','01_qfield/projeto.qgs'='Projeto de navegação no QGIS','02_relatorio/relatorio_execucao.html'='Relatório de execução','03_vetores'='Vetores GPKG, KML e KMZ','04_csv'='Tabelas CSV')
   if(c$gerar_cartografia)links<-c(links,'05_qgis/projeto_edicao.qgz'='Projeto QGIS editável e quatro layouts','mapas_pdf'='Quatro mapas PDF georreferenciados','mapas_png'='Quatro mapas PNG')
-  writeLines(c('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Monitora — entrega</title><style>body{font:18px/1.6 sans-serif;max-width:900px;margin:40px auto;padding:20px;color:#174b3b}</style>',paste0('<h1>',e(c$projeto),'</h1><p>v0.4.0 · ',e(mode),' · ',e(status),'</p><ul>'),paste0('<li><a href="',names(links),'">',links,'</a></li>'),'</ul><p>Edite os vetores em 05_qgis. Essas alterações não modificam o pacote QField, os CSV/KML ou mapas já exportados. Reexporte os layouts após editar. Preserve a pasta completa para manter as imagens compartilhadas e os caminhos relativos.</p></html>'),file.path(root,'ABRA_AQUI.html'))
+  writeLines(c('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Monitora — entrega</title><style>body{font:18px/1.6 sans-serif;max-width:900px;margin:40px auto;padding:20px;color:#174b3b}</style>',paste0('<h1>',e(c$projeto),'</h1><p>v0.4.1 · ',e(mode),' · ',e(status),'</p><ul>'),paste0('<li><a href="',names(links),'">',links,'</a></li>'),'</ul><p>Edite os vetores em 05_qgis. Essas alterações não modificam o pacote QField, os CSV/KML ou mapas já exportados. Reexporte os layouts após editar. Preserve a pasta completa para manter as imagens compartilhadas e os caminhos relativos.</p></html>'),file.path(root,'ABRA_AQUI.html'))
 }
 # Composição source-over: a primeira fonte local prevalece; transparências são preenchidas.
 mq_alpha_over <- function(front,back) {
@@ -203,7 +203,42 @@ mq_qgis_prepare <- function(c,root,scratch) {
   mq_qgis_call(runtime,file.path(scratch,'cartografia_qgis.py'),'probe',file.path(root,'02_relatorio','qgis_capacidades.json'),file.path(root,'02_relatorio','qgis_probe.log'))
   runtime
 }
+mq_locator_base <- function(c,root) {
+  # Bases oficiais de contexto; primeira obtenção ~27 MiB, reutilizadas com SHA256.
+  cache<-file.path(c$cache_dir,'cartografia_ibge_2025');dir.create(cache,recursive=TRUE,showWarnings=FALSE)
+  sources<-c(estados='https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_municipais/municipio_2025/Brasil/BR_UF_2025.zip',biomas='https://geoftp.ibge.gov.br/informacoes_ambientais/estudos_ambientais/biomas/vetores/2025_Biomas-e-Sistema-Costeiro-Marinho-do-Brasil-1-250000_shp.zip')
+  gp<-file.path(cache,'contexto_simplificado_1000m_v2.gpkg');meta<-file.path(cache,'fontes.json')
+  if(!mq_verified(gp)||!file.exists(meta)) {
+    audit<-list();tmpgp<-file.path(cache,'contexto_ibge.parcial.gpkg');if(file.exists(tmpgp))unlink(tmpgp);if(file.exists(gp))mq_stop('Base de contexto sem integridade; confira o cache: ',gp)
+    for(n in names(sources)) {
+      z<-file.path(cache,paste0(n,'.zip'))
+      if(!mq_verified(z)) {
+        message('Localizador: obtendo base oficial IBGE de ',n,' (primeira execução; cache persistente).')
+        tmp<-paste0(z,'.parcial');res<-httr::GET(sources[[n]],httr::write_disk(tmp,overwrite=TRUE),httr::timeout(max(120,c$timeout_s)));httr::stop_for_status(res)
+        if(!file.rename(tmp,z))mq_stop('Falha ao materializar base IBGE.');mq_seal(z)
+      }
+      folder<-tempfile('ibge_');dir.create(folder);entries<-utils::unzip(z,list=TRUE)$Name
+      if(any(grepl('(^/|(^|/)\\.\\.(/|$)|:|\\\\)',entries)))mq_stop('Caminho inseguro no ZIP IBGE.')
+      utils::unzip(z,exdir=folder);shp<-list.files(folder,'\\.shp$',recursive=TRUE,full.names=TRUE,ignore.case=TRUE)
+      if(length(shp)!=1)mq_stop('Base IBGE com seleção de camada ambígua: ',n)
+      x<-sf::st_read(shp,quiet=TRUE);if(is.na(sf::st_crs(x)))mq_stop('Base IBGE sem CRS.')
+      field<-intersect(if(n=='estados')c('SIGLA_UF','SIGLA')else c('Bioma','BIOMA','NOM_BIOMA','NM_BIOMA'),names(x))[1]
+      if(is.na(field))mq_stop('Campo de identificação ausente na base IBGE: ',n,'; campos: ',paste(names(x),collapse=', '))
+      x<-sf::st_sf(nome=as.character(x[[field]]),geometry=sf::st_geometry(x));if(n=='estados')sf::st_write(sf::st_transform(sf::st_make_valid(x),4674),tmpgp,layer='estados_identificacao',quiet=TRUE,append=FALSE);x<-sf::st_transform(sf::st_simplify(sf::st_make_valid(sf::st_transform(x,5880)),dTolerance=1000,preserveTopology=TRUE),4674)
+      if(n=='estados'&&nrow(x)!=27)mq_stop('Malha estadual incompleta.')
+      sf::st_write(x,tmpgp,layer=n,quiet=TRUE,append=FALSE)
+      audit[[n]]<-list(autoridade='IBGE',edicao='2025',fonte=sources[[n]],sha256_zip=mq_hash(z),simplificacao_m=1000,uso='Somente contexto cartográfico; não classifica pontos nem delimita áreas elegíveis.')
+      unlink(folder,recursive=TRUE)
+    }
+    if(!file.rename(tmpgp,gp))mq_stop('Falha ao finalizar base do localizador.');mq_seal(gp);mq_json(audit,meta)
+  }
+  dir.create(file.path(root,'05_qgis/contexto'),recursive=TRUE,showWarnings=FALSE)
+  if(!file.copy(gp,file.path(root,'05_qgis/contexto/contexto_ibge.gpkg'),overwrite=TRUE))mq_stop('Falha ao copiar base do localizador.')
+  file.copy(meta,file.path(root,'02_relatorio/fontes_localizador.json'),overwrite=TRUE)
+  invisible(gp)
+}
 mq_cartography <- function(layers,ras,ae,c,root,scratch) {
+  mq_locator_base(c,root)
   message('Cartografia QGIS: quatro layouts, PDFs georreferenciados e PNGs. Aguarde a renderização.')
   project_root<-if(c$qgis_runtime$windows&&.Platform$OS.type!='windows')system2('wslpath',c('-w',shQuote(root)),stdout=TRUE)else root
   config<-file.path(scratch,'cartografia.json');mq_json(list(root=project_root,projeto=c$projeto,dpi=c$mapas_dpi,papel=c$mapas_papel,elaboracao=c$elaboracao,camadas=lapply(layers,function(l)list(nome=l$nome,papel=l$papel))),config)
