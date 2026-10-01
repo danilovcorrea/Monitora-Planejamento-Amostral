@@ -22,7 +22,12 @@ wrong<-tempfile();dir.create(wrong);st_write(a,file.path(wrong,'outros_poligonos
 # Integração local usa resposta federal sintética somente no ambiente deste teste; produto normal sempre consulta rede.
 e<-new.env(parent=globalenv());sys.source('qfield/monitora_criar_qfield.R',envir=e)
 e$mq_uc<-function(ae,c)list(x=mq_empty(4326),fonte='fixture',camada='fixture',titulo='fixture sem UC',consulta='teste',total_bbox=0,status='consulta_completa')
-co<-MQ_CONFIG;co$entrada<-p;co$saida<-tempfile();co$mapbiomas<-FALSE;co$projeto<-'Teste sintético'
+# Fundo sintético amplo: valida o fluxo obrigatório sem consultar imagens externas.
+br<-st_bbox(st_transform(st_buffer(st_read(file.path(p,'areas_elegiveis.gpkg'),quiet=TRUE),2000),3857))
+rr<-terra::rast(nrows=128,ncols=128,nlyrs=3,xmin=br[1],xmax=br[3],ymin=br[2],ymax=br[4],crs='EPSG:3857');terra::values(rr)<-100
+rt<-tempfile(fileext='.tif');terra::writeRaster(rr,rt,datatype="INT1U");rs<-tempfile(fileext='.mbtiles');monitora_qfield_mbtiles(rt,rs,'fixture sintética')
+mq_json(list(produto='Sentinel-2 L2A',resolucao_nativa_m=10,sha256=mq_hash(rs),versao_acervo='fixture',origem='TESTE SINTÉTICO; sem imagem real'),paste0(rs,'.fonte.json'))
+co<-MQ_CONFIG;co$sentinel_arquivo<-rs;co$baixar_imagem_detalhe<-FALSE;co$cache_dir<-tempfile();co$entrada<-p;co$saida<-tempfile();co$mapbiomas<-FALSE;co$projeto<-'Teste sintético'
 r<-e$monitora_criar_qfield(co);ok('pacote_final_existe',file.exists(file.path(r$pasta,'01_qfield','pacote_qfield.zip')))
 reg<-st_read(file.path(r$pasta,'01_qfield','dados','referencias.gpkg'),layer='grade_amostral',quiet=TRUE);ok('PA_id_grade',identical(reg$PA,paste0('PA',reg$id_grade)))
 # Teste de falha remota: nenhuma promoção final.

@@ -1,5 +1,5 @@
 # Monitora — criação independente de projetos QField
-# Versão 0.1.0 — candidata de homologação, 01/10/2026.
+# Versão 0.2.0 — candidata de homologação, 01/10/2026.
 # Leitores adaptados da versão pública v3.0.6; SHA256 da fonte:
 # 454cb8f1d6f74ec8df2695236add1206080f869a3209c8a09aa92af9b6186d45
 # Arquivo autossuficiente: não carrega o script biológico do Monitora.
@@ -16,6 +16,16 @@ MQ_CONFIG <- list(
   prioritarios = list(n=NULL, percentual=20),
   alternativos = list(n=NULL, percentual=NULL), # ambos NULL: 2 x prioritários
   mapbiomas = TRUE, mb_produto = '30m', mb_colecao = 11L, mb_ano = 2025L,
+  # Detalhe pode levar dezenas de minutos e centenas de MiB. TRUE prepara; não autoriza download.
+  baixar_imagem_detalhe = TRUE, confirmar_download = NULL, confirmar_sentinel = NULL, # NULL pergunta; TRUE autoriza; FALSE usa somente fontes locais
+  centros_detalhe = 'auto', # auto: UAs quando presentes; senão PAs. PAs/UAs/UAs_e_PAs também aceitos.
+  raio_detalhe_m = 500, zooms_detalhe = 16:18, margem_contexto_m = 500,
+  cache_dir = tools::R_user_dir('Monitora_QField','cache'), caches_adicionais = character(),
+  sentinel_arquivo = NULL, # opcional: MBTiles Sentinel anterior; só reutilizado se cobrir o contexto
+  versao_acervo = 'acervo_01', renovar_imagens = FALSE,
+  url_xyz = 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', cabecalhos_xyz = character(),
+  fonte_xyz = 'Google Satellite', atribuicao_xyz = 'Google', licenca_xyz = 'não declarada',
+  intervalo_download_s = 0.5, tentativas_download = 3L, max_tiles = 250000L,
   mb_obrigatorio = FALSE, max_pontos = 500000L, timeout_s = 60,
   uc_url = 'https://geoservicos.inde.gov.br/geoserver/ICMBio/ows',
   uc_camada = 'ICMBio:limiteucsfederais_a'
@@ -265,7 +275,7 @@ mq_json <- function(x, f) jsonlite::write_json(x, f, pretty=TRUE, auto_unbox=TRU
 mq_csv <- function(x, f) data.table::fwrite(sf::st_drop_geometry(x), f, sep=';', bom=TRUE, na='', quote='auto')
 mq_empty <- function(crs=4326) sf::st_sf(geometry=sf::st_sfc(crs=crs))
 mq_deps <- function() {
-  p <- c('sf','terra','xml2','zip','jsonlite','digest','httr','data.table','DBI','RSQLite')
+  p <- c('sf','terra','xml2','zip','jsonlite','digest','httr','data.table','DBI','RSQLite','cli','curl','png','jpeg')
   miss <- p[!vapply(p, requireNamespace, logical(1), quietly=TRUE)]
   if(length(miss)) mq_stop('Instale os pacotes: ',paste(miss,collapse=', '))
 }
@@ -277,6 +287,13 @@ mq_validate_config <- function(c) {
   if(length(c$semente)!=1 || !is.finite(c$semente) || c$semente!=as.integer(c$semente)) mq_stop('Semente inválida.')
   if(!c$mb_produto %in% c('30m','10m')) mq_stop('MapBiomas: produto deve ser 30m ou 10m.')
   if(isTRUE(c$mapbiomas) && !((c$mb_produto=='30m' && c$mb_colecao==11 && c$mb_ano %in% 1985:2025) || (c$mb_produto=='10m' && c$mb_colecao==4 && c$mb_ano %in% 2017:2025))) mq_stop('Produto/coleção/ano MapBiomas não homologado; use 30m/11 ou 10m/4 até 2025.')
+  if(!c$centros_detalhe%in%c('auto','PAs','UAs','UAs_e_PAs'))mq_stop('centros_detalhe inválido.')
+  for(n in c('baixar_imagem_detalhe','renovar_imagens'))if(length(c[[n]])!=1||!is.logical(c[[n]])||is.na(c[[n]]))mq_stop('Opção lógica inválida: ',n)
+  if(!is.null(c$confirmar_download)&&(length(c$confirmar_download)!=1||!is.logical(c$confirmar_download)||is.na(c$confirmar_download)))mq_stop('confirmar_download deve ser NULL, TRUE ou FALSE.')
+  if(!identical(as.numeric(c$raio_detalhe_m),500))mq_stop('Versão atual homologa raio_detalhe_m=500.')
+  if(length(c$margem_contexto_m)!=1||!is.numeric(c$margem_contexto_m)||!is.finite(c$margem_contexto_m)||c$margem_contexto_m<0)mq_stop('Margem de contexto inválida.')
+  for(n in c('confirmar_download','confirmar_sentinel'))if(!is.null(c[[n]])&&(length(c[[n]])!=1||!is.logical(c[[n]])||is.na(c[[n]])))mq_stop('Confirmação inválida: ',n)
+  if(length(c$cache_dir)!=1||!nzchar(c$cache_dir))mq_stop('Informe cache_dir persistente.')
   invisible(c)
 }
 mq_crs <- function(ae, epsg=NULL) {
@@ -323,7 +340,7 @@ mq_read <- function(entrada,scratch) {
     if(length(ii) && 'nome' %in% names(m) && !is.na(m$nome[ii]) && nzchar(m$nome[ii]) && !role %in% c('PA_priorit','PA_altern','grade_amostral')) nm <- m$nome[ii]
     if(nchar(nm)>26) mq_stop('Nome exibido longo (>26 caracteres): ',nm)
     if(nm %in% vapply(out,`[[`,character(1),'nome')) mq_stop('Nome de camada repetido; consolide fontes ou indique nomes distintos: ',nm)
-    out[[length(out)+1L]] <- list(x=x,papel=role,nome=nm,label=label,fonte=paste(ar,la,sep=' | '))
+    out[[length(out)+1L]] <- list(x=x,papel=role,nome=nm,label=label,ano=ano,fonte=paste(ar,la,sep=' | '))
   }
   if(nrow(m) && !setequal(used,seq_len(nrow(m)))) mq_stop('Fonte/camada do manifesto não localizada.')
   ae <- Filter(function(l) l$papel=='areas_elegiveis',out)
@@ -475,7 +492,34 @@ mq_coordinates <- function(x) {
   }
   x
 }
+# Cache persistente por coordenada/produto. Lotes imutáveis evitam apagar entradas antigas.
 mq_mb <- function(x,c,report) {
+  if(!nrow(x)||any(grepl('^mb_',names(x))))return(mq_mb_fresh(x,c,report))
+  xy<-sf::st_coordinates(sf::st_transform(x,4326));keys<-paste(sprintf('%a',xy[,1]),sprintf('%a',xy[,2]),sep='|')
+  folder<-file.path(c$cache_dir,'mapbiomas',paste(c$mb_produto,c$mb_colecao,c$mb_ano,sep='_'));dir.create(folder,recursive=TRUE,showWarnings=FALSE)
+  files<-list.files(folder,pattern='\\.rds$',full.names=TRUE);batches<-lapply(files,function(p)if(mq_verified(p))tryCatch(readRDS(p),error=function(e)NULL)else NULL);batches<-Filter(Negate(is.null),batches)
+  cache<-if(length(batches))do.call(rbind,lapply(batches,`[[`,'dados'))else NULL
+  ix<-if(is.null(cache))rep(NA_integer_,length(keys))else match(keys,cache$.chave)
+  missing<-which(is.na(ix));fresh<-NULL
+  if(length(missing)) {
+    fresh<-mq_mb_fresh(x[missing,],c,report);attrs<-sf::st_drop_geometry(fresh)[,grep('^mb_',names(fresh),value=TRUE),drop=FALSE];attrs$.chave<-keys[missing]
+    good<-attrs$mb_status=='obtido'
+    if(any(good)) {
+      lf<-file.path(report,paste0('legenda_mb_',c$mb_produto,'.csv'));mf<-file.path(report,paste0('fonte_mb_',c$mb_produto,'.json'))
+      batch<-list(dados=attrs[good,,drop=FALSE],legenda=if(file.exists(lf))readBin(lf,'raw',file.info(lf)$size)else raw(),fonte=if(file.exists(mf))jsonlite::read_json(mf)else NULL)
+      dest<-file.path(folder,paste0(digest::digest(batch),'.rds'));if(!file.exists(dest)){tmp<-tempfile(tmpdir=folder);saveRDS(batch,tmp);if(!file.rename(tmp,dest))mq_stop('Falha ao materializar cache MapBiomas.');mq_seal(dest)}
+    }
+  }
+  if(!is.null(cache))for(n in setdiff(names(cache),'.chave'))x[[n]]<-cache[[n]][ix]
+  if(!is.null(fresh))for(n in names(fresh)[grepl('^mb_',names(fresh))]) {if(!n%in%names(x))x[[n]]<-fresh[[n]][rep(NA_integer_,nrow(x))];x[[n]][missing]<-fresh[[n]]}
+  if(!length(missing)&&length(batches)) {
+    batch<-batches[[1]];writeBin(batch$legenda,file.path(report,paste0('legenda_mb_',c$mb_produto,'.csv')));mq_json(batch$fonte,file.path(report,paste0('fonte_mb_',c$mb_produto,'.json')))
+  }
+  mq_json(list(reutilizados=sum(!is.na(ix)),consultados=length(missing),pasta_cache=folder),file.path(report,paste0('cache_mb_',c$mb_produto,'_',substr(digest::digest(keys),1,8),'.json')))
+  x
+}
+
+mq_mb_fresh <- function(x,c,report) {
   if(!nrow(x)) return(x)
   if(any(grepl('^mb_',names(x)))){if(all(c('mb_codigo','mb_classe','mb_formacao','mb_produto','mb_colecao','mb_ano','mb_res_m','mb_status','mb_fonte')%in%names(x)))return(x);mq_stop('Campos mb_* parciais/conflitantes na entrada; preserve a origem e use mapbiomas=FALSE.')}
   x$mb_produto<-c$mb_produto;x$mb_colecao<-c$mb_colecao;x$mb_ano<-c$mb_ano;x$mb_res_m<-as.integer(sub('m','',c$mb_produto))
@@ -542,11 +586,636 @@ mq_diagnostics <- function(points,camadas,ae,c,report) {
   }
 }
 
-mq_rasters <- function(entrada,destino,points,report) {
+# Adaptado de baixar_imagens_uas_xyz.R v1.0; sem CONFIG/execução externa.
+qfi_erro <- function(...) stop(..., call. = FALSE)
+qfi_deps <- function() {
+  p <- c("sf", "data.table", "curl", "DBI", "RSQLite", "digest", "png", "jpeg")
+  falta <- p[!vapply(p, requireNamespace, logical(1), quietly = TRUE)]
+  if (length(falta)) qfi_erro("Instale os pacotes ausentes: ", paste(falta, collapse = ", "))
+}
+qfi_hash <- function(x) digest::digest(x, algo = "sha256")
+qfi_filehash <- function(x) digest::digest(file = x, algo = "sha256")
+qfi_slug <- function(x) {
+  y <- iconv(x, to = "ASCII//TRANSLIT"); if (is.na(y)) y <- "UC"
+  y <- substr(gsub("[^A-Za-z0-9_-]+", "_", y), 1, 65)
+  paste0("UC_", y, "_", substr(qfi_hash(x), 1, 10))
+}
+qfi_validar <- function(c) {
+  for (n in c("gpkg", "camada", "campo_uc", "saida", "url_xyz", "fonte", "licenca",
+              "atribuicao", "data_imagem", "resolucao_nativa_m", "versao_acervo"))
+    if (!is.character(c[[n]]) || length(c[[n]]) != 1L || is.na(c[[n]]) || !nzchar(trimws(c[[n]])))
+      qfi_erro("Configuracao ausente/invalida: ", n)
+  if (!file.exists(c$gpkg) || tolower(tools::file_ext(c$gpkg)) != "gpkg") qfi_erro("GPKG nao encontrado.")
+  if (!grepl("^https?://[^/]+/", c$url_xyz) ||
+      !all(vapply(c("{z}", "{x}", "{y}"), function(p) grepl(p, c$url_xyz, fixed = TRUE), logical(1))))
+    qfi_erro("URL deve ser HTTP(S) XYZ com {z}, {x}, {y}. A URL nao foi registrada no log.")
+  u <- c$url_xyz
+  for (p in c("{z}", "{x}", "{y}")) u <- gsub(p, "0", u, fixed = TRUE)
+  if (grepl("[{}]", u)) qfi_erro("URL contem marcadores nao suportados; informe um endpoint XYZ concreto.")
+  for (n in c("raio_m", "intervalo_s", "tentativas", "timeout_s", "max_tiles",
+              "max_tiles_por_feicao", "estimativa_kb_tile", "max_mib_mbtiles"))
+    if (!is.numeric(c[[n]]) || length(c[[n]]) != 1L || !is.finite(c[[n]]) || c[[n]] <= 0)
+      qfi_erro("Configuracao numerica invalida: ", n)
+  if (c$raio_m > 10000 || c$intervalo_s < 0.1 || c$tentativas > 5 || c$timeout_s > 60 ||
+      c$max_mib_mbtiles > 950) qfi_erro("Configuracao excede os limites de seguranca documentados.")
+  for (n in c("tentativas","max_tiles","max_tiles_por_feicao"))
+    if (c[[n]] != floor(c[[n]])) qfi_erro("Configuracao deve ser inteira: ",n)
+  if (!is.numeric(c$zooms) || !length(c$zooms) || anyNA(c$zooms) ||
+      any(c$zooms != as.integer(c$zooms)) || any(!c$zooms %in% 0:22)) qfi_erro("Zoom invalido (0 a22).")
+  c$zooms <- sort(unique(as.integer(c$zooms)))
+  if (!identical(c$zooms, seq.int(min(c$zooms), max(c$zooms)))) qfi_erro("Use niveis de zoom consecutivos.")
+  if (!is.logical(c$executar_download) || length(c$executar_download) != 1L || is.na(c$executar_download))
+    qfi_erro("executar_download deve ser TRUE ou FALSE.")
+  if (length(c$cabecalhos) && (!is.character(c$cabecalhos) || is.null(names(c$cabecalhos)) ||
+      anyNA(c$cabecalhos) || any(!nzchar(names(c$cabecalhos))))) qfi_erro("Cabecalhos invalidos.")
+  if (c$executar_download && (grepl("SEU_PROVEDOR", c$url_xyz, fixed = TRUE) ||
+      any(grepl("^PREENCHER", c(c$fonte, c$licenca, c$atribuicao)))))
+    qfi_erro("Preencha fonte, licenca, atribuicao e URL antes de baixar.")
+  c
+}
+qfi_poligonos_tiles <- function(d) {
+  h <- 20037508.342789244
+  g <- lapply(seq_len(nrow(d)), function(i) {
+    a <- 2*h/2^d$z[i]; esquerda <- -h+d$x[i]*a; topo <- h-d$y[i]*a
+    sf::st_polygon(list(matrix(c(esquerda,topo, esquerda+a,topo, esquerda+a,topo-a,
+                                 esquerda,topo-a, esquerda,topo), ncol=2, byrow=TRUE)))
+  })
+  sf::st_sfc(g, crs=3857)
+}
+qfi_planejar <- function(c) {
+  camadas <- sf::st_layers(c$gpkg)$name
+  if (!c$camada %in% camadas) qfi_erro("Camada nao encontrada. Disponiveis: ", paste(camadas, collapse=", "))
+  a <- sf::st_read(c$gpkg, layer=c$camada, quiet=TRUE, stringsAsFactors=FALSE)
+  if (!nrow(a) || is.na(sf::st_crs(a))) qfi_erro("Camada vazia ou sem CRS definido.")
+  if (!c$campo_uc %in% names(a)) qfi_erro("Coluna UC ausente. Disponiveis: ", paste(names(a), collapse=", "))
+  uc <- trimws(as.character(a[[c$campo_uc]]))
+  if (anyNA(uc) || any(!nzchar(uc))) qfi_erro("Ha feicoes sem identificacao de UC.")
+  tipo <- as.character(sf::st_geometry_type(a))
+  if (any(!tipo %in% c("POINT", "MULTIPOINT", "LINESTRING", "MULTILINESTRING")) ||
+      any(sf::st_is_empty(a)) || any(!sf::st_is_valid(a)))
+    qfi_erro("Use pontos/linhas validos das UAs; nao serao reparados ou descartados automaticamente.")
+  g <- sf::st_transform(sf::st_zm(sf::st_geometry(a), drop=TRUE, what="ZM"), 4326)
+  h <- 20037508.342789244; partes <- list(); acumulado <- 0L
+  for (i in seq_along(g)) {
+    bb <- sf::st_bbox(g[i])
+    if (any(!is.finite(bb)) || bb["xmin"] < -180 || bb["xmax"] > 180 ||
+        bb["ymin"] < -79 || bb["ymax"] > 83 || bb["xmax"]-bb["xmin"] > 6 ||
+        bb["ymax"]-bb["ymin"] > 2) qfi_erro("Feicao ", i, ": extensao inadequada para UA/UTM.")
+    lon <- mean(bb[c("xmin","xmax")]); lat <- mean(bb[c("ymin","ymax")])
+    zona <- min(60L, max(1L, floor((lon+180)/6)+1L)); epsg <- (if (lat >= 0) 32600 else 32700)+zona
+    # Raio em metros UTM, nao graus ou metros distorcidos do WebMercator.
+    b <- sf::st_transform(sf::st_buffer(sf::st_transform(g[i], epsg), c$raio_m, nQuadSegs=32), 3857)
+    e <- sf::st_bbox(b)
+    if (e["xmin"] <= -h || e["xmax"] >= h) qfi_erro("Buffer cruza antimeridiano; separar antes de executar.")
+    for (z in c$zooms) {
+      n <- 2^z; passo <- 2*h/n
+      xr <- pmax(0, pmin(n-1, floor((e[c("xmin","xmax")]+h)/passo)))
+      yr <- pmax(0, pmin(n-1, floor((h-e[c("ymax","ymin")])/passo)))
+      qtd <- (diff(xr)+1)*(diff(yr)+1)
+      if (qtd > c$max_tiles_por_feicao) qfi_erro("Feicao ", i, ": tiles demais. Confira raio/geometria/zoom.")
+      d <- data.table::CJ(x=seq.int(xr[1],xr[2]), y=seq.int(yr[1],yr[2]))
+      d[, z := as.integer(z)]
+      manter <- lengths(sf::st_intersects(qfi_poligonos_tiles(d), b)) > 0L
+      d <- d[manter]; d[, UC := uc[i]]
+      partes[[length(partes)+1L]] <- d[, c("UC","z","x","y"), with=FALSE]
+      acumulado <- acumulado+nrow(d)
+      if (acumulado > c$max_tiles*10) qfi_erro("Plano intermediario excessivo; divida a entrada por grupos de UCs.")
+    }
+  }
+  p <- unique(data.table::rbindlist(partes)); data.table::setorderv(p,c("UC","z","x","y"))
+  chaves <- unique(p[, c("z","x","y"), with=FALSE])
+  if (nrow(chaves) > c$max_tiles) qfi_erro("Plano excede max_tiles: ", nrow(chaves), ". Nenhum download realizado.")
+  list(plano=p, feicoes=data.table::data.table(UC=uc)[, list(feicoes=.N), by=UC])
+}
+qfi_abrir_cache <- function(caminho) {
+  db <- DBI::dbConnect(RSQLite::SQLite(), caminho)
+  DBI::dbExecute(db,"PRAGMA busy_timeout=5000")
+  DBI::dbExecute(db,paste("CREATE TABLE IF NOT EXISTS tiles(z INTEGER,x INTEGER,y INTEGER,",
+    "formato TEXT,largura INTEGER,altura INTEGER,sha256 TEXT,data BLOB,obtido_utc TEXT,PRIMARY KEY(z,x,y))"))
+  db
+}
+qfi_imagem <- function(raw) {
+  if (!is.raw(raw) || length(raw) < 8L || length(raw) > 4*1024^2) qfi_erro("Imagem vazia/excessiva.")
+  if (identical(raw[1:8], as.raw(c(137,80,78,71,13,10,26,10)))) {
+    formato <- "png"; img <- tryCatch(png::readPNG(raw), error=function(e) NULL)
+  } else if (identical(raw[1:2], as.raw(c(255,216)))) {
+    formato <- "jpg"; img <- tryCatch(jpeg::readJPEG(raw), error=function(e) NULL)
+  } else qfi_erro("Resposta nao e uma imagem PNG/JPEG.")
+  d <- dim(img)
+  if (length(d) != 3L || !d[1] %in% c(256L,512L) || d[1] != d[2] || !d[3] %in% 3:4)
+    qfi_erro("Tile deve ser RGB/RGBA quadrado de256 ou512 pixels.")
+  list(formato=formato, largura=d[2], altura=d[1])
+}
+qfi_url <- function(c,z,x,y) {
+  u <- c$url_xyz
+  for (p in c("z","x","y")) u <- gsub(paste0("{",p,"}"), as.character(get(p)), u, fixed=TRUE)
+  u
+}
+qfi_buscar <- function(c,z,x,y) {
+  for (i in seq_len(c$tentativas)) {
+    Sys.sleep(c$intervalo_s)
+    h <- curl::new_handle(timeout=c$timeout_s,connecttimeout=min(15,c$timeout_s),
+      followlocation=FALSE,maxfilesize=4*1024^2,useragent="QField-UA-offline/1.0")
+    if (length(c$cabecalhos)) curl::handle_setheaders(h,.list=as.list(c$cabecalhos))
+    # Nao propagar mensagens curl que podem revelar URL/chave de acesso.
+    r <- tryCatch(curl::curl_fetch_memory(qfi_url(c,z,x,y),handle=h),error=function(e) NULL)
+    st <- if (is.null(r)) 0L else r$status_code
+    if (st == 200L) {
+      info <- tryCatch(qfi_imagem(r$content),error=function(e) NULL)
+      if (is.null(info)) return(list(ok=FALSE,motivo="HTTP200_sem_imagem_RGB_valida"))
+      return(c(list(ok=TRUE,raw=r$content),info))
+    }
+    if (st %in% c(401L,403L)) qfi_erro("HTTP", st, ": acesso negado. Interrompido; cache preservado.")
+    if (st == 429L) {
+      # Nao insistir nem contornar limites da fonte.
+      qfi_erro("HTTP429: limite do provedor. Interrompido; aguarde a janela indicada pelo provedor e retome.")
+    }
+    if (st >= 300L && st < 400L) qfi_erro("Redirecionamento HTTP recusado; configure o endpoint XYZ final.")
+    if (st == 503L && grepl("(?im)^retry-after:", rawToChar(r$headers), perl=TRUE))
+      qfi_erro("HTTP503 com Retry-After. Aguarde o prazo do provedor antes de retomar; cache preservado.")
+    transitorio <- st == 0L || st %in% c(408L,500L,502L,503L,504L)
+    if (!transitorio || i == c$tentativas) return(list(ok=FALSE,motivo=paste0("HTTP_",st)))
+    Sys.sleep(min(8,2^i))
+  }
+}
+qfi_cache_put <- function(db,z,x,y,r) {
+  DBI::dbExecute(db,"INSERT OR REPLACE INTO tiles VALUES(?,?,?,?,?,?,?,?,?)",
+    params=list(as.integer(z),as.integer(x),as.integer(y),r$formato,as.integer(r$largura),
+      as.integer(r$altura),digest::digest(r$raw,"sha256",serialize=FALSE),list(r$raw),
+      format(Sys.time(),"%Y-%m-%dT%H:%M:%SZ",tz="UTC")))
+}
+qfi_cache_get <- function(db,z,x,y) {
+  r <- DBI::dbGetQuery(db,"SELECT * FROM tiles WHERE z=? AND x=? AND y=?",params=list(z,x,y))
+  if (!nrow(r)) return(NULL)
+  if (!identical(digest::digest(r$data[[1]],"sha256",serialize=FALSE),r$sha256[1]))
+    qfi_erro("Cache com checksum divergente em ",z,"/",x,"/",y,". Nenhum arquivo foi removido.")
+  r
+}
+qfi_exportar <- function(db,p,c,raiz,id) {
+  ucs <- unique(p$UC); status <- list()
+  indices <- data.table::as.data.table(DBI::dbGetQuery(db,"SELECT z,x,y,formato,largura,altura,length(data) AS bytes FROM tiles"))
+  for (uc in ucs) {
+    a <- merge(p[UC == uc],indices,by=c("z","x","y"),all.x=TRUE,sort=TRUE)
+    faltam <- sum(is.na(a$bytes)); motivo <- "completo"; arquivo <- ""
+    if (faltam) motivo <- paste0("incompleto: ",faltam," tiles ausentes")
+    else if (sum(a$bytes) > c$max_mib_mbtiles*1024^2*0.90) motivo <- "excede_limite: divida a UC em subconjuntos espaciais"
+    else if (data.table::uniqueN(a[,c("formato","largura","altura"),with=FALSE]) != 1L) motivo <- "formatos_ou_dimensoes_mistos"
+    if (motivo != "completo") {
+      status[[length(status)+1L]] <- data.table::data.table(UC=uc,status=motivo,arquivo=arquivo); next
+    }
+    pasta <- file.path(raiz,"pacotes",id,qfi_slug(uc),"imagens")
+    dir.create(pasta,recursive=TRUE,showWarnings=FALSE)
+    arquivo <- file.path(pasta,paste0("detalhe_z",max(c$zooms),".mbtiles"))
+    prova <- paste0(arquivo,".sha256")
+    if (file.exists(arquivo)) {
+      if (!file.exists(prova) || !identical(qfi_filehash(arquivo),readLines(prova,warn=FALSE)))
+        qfi_erro("Saida existente sem checksum valido. Preservada: ",arquivo)
+    } else {
+      tmp <- tempfile("montagem_",tmpdir=pasta,fileext=".parcial")
+      con <- DBI::dbConnect(RSQLite::SQLite(),tmp)
+      tryCatch({
+        DBI::dbExecute(con,"CREATE TABLE metadata(name TEXT PRIMARY KEY,value TEXT)")
+        DBI::dbExecute(con,"CREATE TABLE tiles(zoom_level INTEGER,tile_column INTEGER,tile_row INTEGER,tile_data BLOB,PRIMARY KEY(zoom_level,tile_column,tile_row))")
+        limites <- sf::st_bbox(sf::st_transform(qfi_poligonos_tiles(a),4326))
+        meta <- c(name=paste(uc,"— detalhe"),format=a$formato[1],type="baselayer",version="1",
+          minzoom=as.character(min(a$z)),maxzoom=as.character(max(a$z)),
+          bounds=paste(format(as.numeric(limites),digits=12,scientific=FALSE,trim=TRUE,decimal.mark="."),collapse=","),
+          attribution=c$atribuicao,description=paste(c$fonte,";",c$licenca),
+          fonte=c$fonte,data_imagem=c$data_imagem,resolucao_nativa_m=c$resolucao_nativa_m)
+        DBI::dbWriteTable(con,"metadata",data.frame(name=names(meta),value=unname(meta)),append=TRUE)
+        DBI::dbWithTransaction(con,{
+          for (i in seq_len(nrow(a))) {
+            r <- qfi_cache_get(db,a$z[i],a$x[i],a$y[i])
+            DBI::dbExecute(con,"INSERT INTO tiles VALUES(?,?,?,?)",params=list(as.integer(a$z[i]),
+              as.integer(a$x[i]),as.integer(2^a$z[i]-1-a$y[i]),list(r$data[[1]])))
+          }
+        })
+        if (DBI::dbGetQuery(con,"PRAGMA integrity_check")[[1]][1] != "ok" ||
+            DBI::dbGetQuery(con,"SELECT count(*) AS n FROM tiles")$n != nrow(a)) qfi_erro("Falha na verificacao MBTiles.")
+      },finally=DBI::dbDisconnect(con))
+      if (file.info(tmp)$size > c$max_mib_mbtiles*1024^2) qfi_erro("MBTiles excede limite; parcial preservado: ",tmp)
+      if (!file.rename(tmp,arquivo)) qfi_erro("Falha ao finalizar MBTiles; parcial preservado: ",tmp)
+      writeLines(qfi_filehash(arquivo),prova)
+    }
+    m <- data.table::data.table(arquivo=basename(arquivo),papel="detalhe",fonte=c$fonte,
+      licenca=c$licenca,resolucao_nativa_m=c$resolucao_nativa_m,data_imagem=c$data_imagem,ativo="S")
+    data.table::fwrite(m,file.path(pasta,"fontes_imagens.csv"))
+    status[[length(status)+1L]] <- data.table::data.table(UC=uc,status=motivo,arquivo=arquivo)
+  }
+  data.table::rbindlist(status)
+}
+qfi_executar <- function(config) {
+  inicio <- Sys.time(); qfi_deps(); c <- qfi_validar(config)
+  original <- qfi_filehash(c$gpkg)
+  c$saida <- normalizePath(c$saida,winslash="/",mustWork=FALSE)
+  dir.create(c$saida,recursive=TRUE,showWarnings=FALSE)
+  trava <- file.path(c$saida,"EM_EXECUCAO")
+  if (!dir.create(trava,showWarnings=FALSE)) qfi_erro("Outra execucao/trava existe: ",trava,
+    ". Se houve fechamento abrupto, remova SOMENTE essa pasta vazia apos confirmar que o script parou.")
+  # Remove apenas a pasta vazia de trava criada por esta execucao.
+  on.exit(if (dir.exists(trava) && !length(list.files(trava,all.files=TRUE,no..=TRUE)))
+    unlink(trava,recursive=TRUE),add=TRUE)
+  message("Planejando entornos de ",c$raio_m," m; nenhum download nesta etapa...")
+  pl <- qfi_planejar(c); p <- pl$plano
+  fonte_id <- substr(qfi_hash(list(c$url_xyz,c$cabecalhos,c$fonte,c$versao_acervo)),1,24)
+  # Cache e logs nao armazenam URL, headers ou credenciais em texto.
+  pasta_cache <- file.path(c$saida,"cache",fonte_id); dir.create(pasta_cache,recursive=TRUE,showWarnings=FALSE)
+  db <- qfi_abrir_cache(file.path(pasta_cache,"tiles.sqlite")); on.exit(DBI::dbDisconnect(db),add=TRUE)
+  unicos <- unique(p[,c("z","x","y"),with=FALSE]); data.table::setorderv(unicos,c("z","x","y"))
+  tem <- data.table::as.data.table(DBI::dbGetQuery(db,"SELECT z,x,y FROM tiles"))
+  faltam <- unicos[!tem,on=c("z","x","y")]
+  id <- substr(qfi_hash(list(fonte_id,p,c$raio_m,c$licenca,c$atribuicao,c$data_imagem,c$resolucao_nativa_m)),1,20)
+  auditoria <- file.path(c$saida,"planos",id); dir.create(auditoria,recursive=TRUE,showWarnings=FALSE)
+  data.table::fwrite(p,file.path(auditoria,"tiles_por_uc.csv"))
+  resumo <- merge(pl$feicoes,p[,list(tiles=.N),by=UC],by="UC")
+  resumo[, estimativa_MiB := round(tiles*c$estimativa_kb_tile/1024,1)]
+  data.table::fwrite(resumo,file.path(auditoria,"resumo_por_uc.csv"))
+  message("UCs: ",nrow(resumo)," | tiles unicos: ",nrow(unicos)," | em cache: ",nrow(unicos)-nrow(faltam),
+    " | faltantes: ",nrow(faltam)," | estimativa de download: ",round(nrow(faltam)*c$estimativa_kb_tile/1024,1)," MiB.")
+  message("Estimativa minima de tempo (somente intervalo): ",round(nrow(faltam)*c$intervalo_s/60,1)," min; rede/gravacao acrescem tempo.")
+  writeLines(c(paste("Fonte:",c$fonte),paste("Licenca:",c$licenca),paste("Raio_m:",c$raio_m),
+    paste("Zooms:",paste(c$zooms,collapse=",")),paste("GPKG_SHA256:",original),paste("Fonte_id:",fonte_id),
+    "Volume e estimativa, nao garantia. Cache e exportacao ocupam espaco adicional.",
+    "Tiles cobrem o buffer por intersecao; suas bordas podem ultrapassar o raio em ate um tile.",
+    "Cobertura de tiles nao comprova ausencia de nuvens, atualidade ou qualidade do terreno.",
+    "O script usa a geometria fornecida: pontos nao inventam o outro extremo de uma transeccao."),
+    file.path(auditoria,"LEIA_ME.txt"))
+  if (!c$executar_download) {
+    message("PLANEJAMENTO CONCLUIDO. Confira ",auditoria,"; altere executar_download=TRUE para baixar.")
+    return(invisible(list(plano=p,resumo=resumo,auditoria=auditoria)))
+  }
+  falhas <- list(); consecutivas <- 0L
+  data.table::fwrite(data.table::data.table(z=integer(),x=integer(),y=integer(),motivo=character()),
+    file.path(auditoria,"falhas.csv"))
+  tamanho_fonte <- DBI::dbGetQuery(db,"SELECT DISTINCT formato,largura,altura FROM tiles")
+  for (i in seq_len(nrow(faltam))) {
+    t <- faltam[i]; r <- qfi_buscar(c,t$z,t$x,t$y)
+    if (r$ok) {
+      a <- data.frame(formato=r$formato,largura=as.integer(r$largura),altura=as.integer(r$altura))
+      if (nrow(tamanho_fonte) && !identical(a,tamanho_fonte)) qfi_erro("Fonte mudou formato/dimensoes. Cache preservado; nao misturar acervos.")
+      tamanho_fonte <- a; qfi_cache_put(db,t$z,t$x,t$y,r); consecutivas <- 0L
+    } else {
+      falhas[[length(falhas)+1L]] <- data.table::data.table(z=t$z,x=t$x,y=t$y,motivo=r$motivo)
+      data.table::fwrite(data.table::rbindlist(falhas),file.path(auditoria,"falhas.csv"))
+      consecutivas <- consecutivas+1L
+      if (consecutivas >= 10L) qfi_erro("Dez falhas consecutivas; confira fonte/cobertura. Cache e falhas.csv preservados.")
+    }
+    if (i == 1L || i %% 25L == 0L || i == nrow(faltam))
+      message("Download ",i,"/",nrow(faltam)," (",round(100*i/nrow(faltam),1),"%); falhas: ",length(falhas),
+        "; decorrido: ",round(as.numeric(difftime(Sys.time(),inicio,units="mins")),1)," min.")
+  }
+  resultado <- qfi_exportar(db,p,c,c$saida,id)
+  data.table::fwrite(resultado,file.path(auditoria,"resultado_por_uc.csv"))
+  if (!identical(original,qfi_filehash(c$gpkg))) qfi_erro("GPKG foi modificado durante a execucao por processo externo; revise a entrada.")
+  message("Fim: ",sum(resultado$status == "completo"),"/",nrow(resultado)," UCs completas. Resultado: ",auditoria)
+  if (any(resultado$status != "completo")) warning("Existem UCs incompletas; nao foram entregues MBTiles parciais. Veja resultado_por_uc.csv.",call.=FALSE)
+  invisible(list(plano=p,resultado=resultado,auditoria=auditoria))
+}
+
+
+monitora_qfield_info_raster <- function(path) {
+  if (!identical(readBin(path, what = "raw", n = 16L), c(charToRaw("SQLite format 3"), as.raw(0)))) stop("QField: assinatura MBTiles/SQLite inválida; nenhum raster foi aberto.", call. = FALSE)
+  jsonlite::fromJSON(sf::gdal_utils("info", path, options = c("-json", "-nomd", "-if", "MBTiles"), quiet = TRUE), simplifyVector = FALSE)
+}
+monitora_qfield_mbtiles <- function(rgb, destino, descricao, zoom_max = 14L) {
+  r <- terra::rast(rgb)
+  if (terra::nlyr(r) < 3L || !nzchar(terra::crs(r))) stop("QField: raster deve ser RGB georreferenciado.", call. = FALSE)
+  bb <- terra::ext(terra::project(terra::as.polygons(terra::ext(r), crs = terra::crs(r)), "EPSG:3857"))
+  resolucao <- 156543.03392804097 / 2^zoom_max
+  estimativa <- ceiling((bb$xmax - bb$xmin) / resolucao) * ceiling((bb$ymax - bb$ymin) / resolucao)
+  if (!is.finite(estimativa) || estimativa > 120000000) stop("QField: orçamento de 120 milhões de pixels excedido; reduzir extensão, não a qualidade silenciosamente.", call. = FALSE)
+  sf::gdal_utils("warp", rgb, destino, options = c("-of", "MBTiles", "-t_srs", "EPSG:3857", "-tr", format(resolucao, digits = 16), format(resolucao, digits = 16), "-r", "bilinear", "-dstalpha", "-co", "TILE_FORMAT=PNG", "-co", paste0("DESCRIPTION=", descricao), "-wm", "64"), quiet = TRUE, config_options = c(GDAL_NUM_THREADS = "1", GDAL_HTTP_TIMEOUT = "60", GDAL_HTTP_CONNECTTIMEOUT = "15"))
+  sf::gdal_addo(destino, overviews = as.integer(2^seq_len(max(1L, zoom_max - 8L))), method = "AVERAGE", read_only = FALSE)
+  if (!file.exists(destino) || file.info(destino)$size <= 0) stop("QField: MBTiles não materializado.", call. = FALSE)
+  invisible(monitora_qfield_info_raster(destino))
+}
+monitora_qfield_sentinel <- function(pontos, scratch, limite = NULL) {
+  pt <- sf::st_transform(pontos, 4326)
+  b <- sf::st_bbox(pt); lon <- mean(b[c(1, 3)]); lat <- mean(b[c(2, 4)])
+  crs_local <- (if (lat < 0) 32700L else 32600L) + floor((lon + 180) / 6) + 1L
+  alvo <- sf::st_union(sf::st_geometry(sf::st_transform(if (is.null(limite)) pt else limite, crs_local)))
+  # O limite recebido já contém a margem de contexto configurada.
+  b <- sf::st_bbox(sf::st_transform(alvo, 4326))
+  bbm <- sf::st_bbox(sf::st_transform(alvo, 3857))
+  resolucao <- 156543.03392804097 / 2^14
+  npix <- prod(ceiling(c(bbm[[3]] - bbm[[1]], bbm[[4]] - bbm[[2]]) / resolucao))
+  if (!is.finite(npix) || npix > 120000000) stop("QField: área Sentinel excede orçamento de 120 milhões de pixels antes da aquisição.", call. = FALSE)
+  bbox <- paste(format(as.numeric(b), scientific = FALSE, digits = 12), collapse = ",")
+  url <- "https://earth-search.aws.element84.com/v1/search"
+  res <- httr::GET(url, query = list(collections = "sentinel-2-l2a", bbox = bbox, datetime = paste0(Sys.Date() - 365, "T00:00:00Z/", Sys.Date(), "T23:59:59Z"), limit = 100), httr::timeout(45))
+  httr::stop_for_status(res)
+  features <- jsonlite::fromJSON(httr::content(res, as = "text", encoding = "UTF-8"), simplifyVector = FALSE)$features
+  if (!length(features)) stop("QField: Sentinel sem cenas na janela de 365 dias.", call. = FALSE)
+  clouds <- vapply(features, function(f) if (is.null(f$properties[["eo:cloud_cover"]])) Inf else as.numeric(f$properties[["eo:cloud_cover"]]), numeric(1))
+  dates <- vapply(features, function(f) as.character(f$properties$datetime), character(1))
+  ordem <- order(clouds, -as.numeric(as.POSIXct(dates, format = "%Y-%m-%dT%H:%M:%S", tz = "UTC")))
+  features <- features[ordem]
+  arquivos <- character(); metas <- list(); tiles <- character()
+  for (f in features) {
+    tile <- paste(f$properties[["mgrs:utm_zone"]], f$properties[["mgrs:latitude_band"]], f$properties[["mgrs:grid_square"]])
+    if (!length(tile) || !nzchar(tile)) tile <- f$id
+    if (is.null(f$assets$visual$href)) next
+    href <- f$assets$visual$href
+    if (!grepl("^https://sentinel-cogs\\.s3\\.[a-z0-9-]+\\.amazonaws\\.com/", href)) stop("QField: host COG fora da fonte Sentinel permitida.", call. = FALSE)
+    if (length(arquivos) >= 16L) stop('Contexto Sentinel excede 16 cenas; divida o projeto.',call.=FALSE)
+    if (tile %in% tiles) next
+    dst <- file.path(scratch, paste0("sentinel_", length(arquivos) + 1L, ".tif"))
+    message('Sentinel: obtendo cena ',length(arquivos)+1L,' / tile ',tile,'; ',f$properties$datetime)
+    sf::gdal_utils("warp", paste0("/vsicurl/", href), dst, options = c("-t_srs", "EPSG:3857", "-te", as.character(bbm), "-tr", as.character(resolucao), as.character(resolucao), "-r", "bilinear", "-dstalpha", "-co", "COMPRESS=DEFLATE", "-wm", "64"), quiet = TRUE, config_options = c(GDAL_NUM_THREADS = "1", GDAL_HTTP_TIMEOUT = "60", GDAL_HTTP_CONNECTTIMEOUT = "15", GDAL_DISABLE_READDIR_ON_OPEN = "EMPTY_DIR", CPL_VSIL_CURL_ALLOWED_EXTENSIONS = ".tif"))
+    arquivos <- c(arquivos, dst); tiles <- c(tiles, tile)
+    metas[[length(metas) + 1L]] <- data.table::data.table(item = f$id, data = f$properties$datetime, nuvens_cena_pct = f$properties[["eo:cloud_cover"]], fonte = href)
+    r <- terra::rast(dst)
+    v <- terra::extract(r, terra::vect(pt), ID = FALSE)
+    # A cobertura é validada para todo o contexto, não somente para os pontos.
+  }
+  if (!length(arquivos)) stop("QField: nenhum COG RGB disponível.", call. = FALSE)
+  vrt <- file.path(scratch, "sentinel_rgb.vrt")
+  sf::gdal_utils("buildvrt", rev(arquivos), vrt, options = c("-resolution", "highest"), quiet = TRUE)
+  list(rgb = vrt, metadados = data.table::rbindlist(metas), nota = "Sentinel-2 L2A RGB nativo 10 m; seleção por nuvens da cena, não classificação local. Conferir nuvens e época da imagem; não equivale a alta resolução.")
+}
+
+# Progresso por etapa; não confundir conclusão do download com projeto concluído.
+mq_progress <- function(name,n) {
+  e<-new.env(parent=emptyenv());e$start<-proc.time()[3];e$last<-e$start;e$current<-0
+  dynamic<-isTRUE(cli::is_dynamic_tty())
+  id<-if(dynamic)cli::cli_progress_bar(name,total=n,clear=FALSE,format='{name} {cli::pb_bar} {cli::pb_percent} ({cli::pb_current}/{cli::pb_total}) | decorrido {cli::pb_elapsed} | restante {cli::pb_eta}')else NULL
+  if(!dynamic)message('[',name,'] iniciado',if(is.na(n))'; duração ainda não estimada'else paste0('; ',n,' unidades'))
+  list(id=id,dynamic=dynamic,n=n,name=name,state=e)
+}
+mq_progress_update <- function(id,set,status='') {
+  id$state$current<-set
+  if(id$dynamic)return(cli::cli_progress_update(id=id$id,set=set,status=status))
+  now<-proc.time()[3];elapsed<-now-id$state$start
+  if(set==1||set==id$n||now-id$state$last>=5) {
+    pct<-100*set/id$n;eta<-if(set>0)elapsed*(id$n-set)/set else NA
+    message(sprintf('[%s] [%s%s] %.1f%% | restante %.1f%% | %d/%d | %.0f s decorridos | ~%.0f s restantes %s',id$name,strrep('=',floor(pct/5)),strrep(' ',20-floor(pct/5)),pct,100-pct,set,id$n,elapsed,eta,status));id$state$last<-now
+  }
+}
+mq_progress_done <- function(id) {
+  if(id$dynamic)cli::cli_progress_done(id=id$id)else message('[',id$name,'] etapa encerrada; ',round(proc.time()[3]-id$state$start,1),' s',if(!is.na(id$n))paste0('; unidades ',id$state$current,'/',id$n)else '')
+}
+mq_centers <- function(layers,c,cr) {
+  out<-list();pick<-function(role)Filter(function(l)l$papel%in%role && nrow(l$x)>0,layers)
+  hasua<-length(pick(c('verg_ini','verg_fin','UAs')))>0
+  scope<-if(c$centros_detalhe=='auto')if(hasua)'UAs'else 'PAs'else c$centros_detalhe
+  add<-function(x,id,origin){out[[length(out)+1L]]<<-sf::st_sf(id_centro=id,origem=origin,geometry=sf::st_geometry(x))}
+  if(scope%in%c('PAs','UAs_e_PAs'))for(l in pick(c('PA_priorit','PA_altern')))add(l$x,as.character(l$x[[l$label]]),l$nome)
+  if(scope%in%c('UAs','UAs_e_PAs')) {
+    ini<-pick('verg_ini');fin<-pick('verg_fin')
+    if(!length(ini)||!length(fin))mq_stop('Centros UAs exigem verg_ini e verg_fin pareados; não é possível inferir ponto médio de uma camada UAs isolada.')
+    key<-function(l)if(!is.null(l$ano)&&!is.na(l$ano)&&nzchar(l$ano))as.character(l$ano)else ''
+    ki<-vapply(ini,key,character(1));kf<-vapply(fin,key,character(1))
+    if(anyDuplicated(ki)||anyDuplicated(kf)||!setequal(ki,kf))mq_stop('Pares anuais de UAs ambíguos; declare ano e campo_rotulo no manifesto.')
+    for(i in seq_along(ini)) {
+      a<-ini[[i]];b<-fin[[match(ki[i],kf)]]
+      if(!nzchar(a$label)||!nzchar(b$label))mq_stop('UAs exigem campo_rotulo identificador comum aos extremos.')
+      ka<-as.character(a$x[[a$label]]);kb<-as.character(b$x[[b$label]])
+      if(anyNA(ka)||anyNA(kb)||any(!nzchar(ka))||any(!nzchar(kb))||anyDuplicated(ka)||anyDuplicated(kb)||!setequal(ka,kb))mq_stop('Identificação dos extremos de UA ausente, duplicada ou sem par.')
+      xy<-(sf::st_coordinates(sf::st_zm(a$x))[,1:2,drop=FALSE]+sf::st_coordinates(sf::st_zm(b$x[match(ka,kb),]))[,1:2,drop=FALSE])/2
+      x<-sf::st_as_sf(data.frame(x=xy[,1],y=xy[,2]),coords=c('x','y'),crs=cr)
+      add(x,paste(ka,ki[i],sep=' / '),'ponto_medio_UA_observada')
+    }
+  }
+  if(!length(out))return(mq_empty(cr))
+  x<-do.call(rbind,out);x<-sf::st_zm(x);attr(x,'abrangencia')<-scope;x
+}
+mq_mask <- function(centers,c) {
+  if(!nrow(centers))return(sf::st_sfc(crs=sf::st_crs(centers)))
+  xy<-sf::st_coordinates(centers);g<-sf::st_geometry(centers[order(xy[,1],xy[,2]),]);g<-unique(g)
+  sf::st_union(sf::st_buffer(g,c$raio_detalhe_m,nQuadSegs=90))
+}
+mq_verified <- function(p) file.exists(p)&&file.exists(paste0(p,'.sha256'))&&identical(mq_hash(p),readLines(paste0(p,'.sha256'),warn=FALSE))
+mq_seal <- function(p){writeLines(mq_hash(p),paste0(p,'.sha256'));p}
+mq_rgba <- function(raw) {
+  if(identical(raw[1:8],as.raw(c(137,80,78,71,13,10,26,10))))a<-png::readPNG(raw)
+  else if(identical(raw[1:2],as.raw(c(255,216))))a<-jpeg::readJPEG(raw)
+  else {p<-tempfile(fileext='.webp');on.exit(unlink(p));writeBin(raw,p);a<-as.array(terra::rast(p))/255}
+  if(length(dim(a))!=3 || !dim(a)[3]%in%c(3,4))mq_stop('Tile sem RGB/RGBA.')
+  if(dim(a)[3]==3){b<-array(1,c(dim(a)[1:2],4));b[,,1:3]<-a;a<-b};a
+}
+mq_clip_mb <- function(src,mask,c,report) {
+  key<-digest::digest(list(mq_hash(src),sf::st_as_binary(mask),sf::st_crs(mask)$wkt,'rgba_png_v1'))
+  dest<-file.path(c$cache_dir,'recortes',paste0(key,'.mbtiles'));dir.create(dirname(dest),recursive=TRUE,showWarnings=FALSE)
+  if(mq_verified(dest))return(dest)
+  if(file.exists(dest))mq_stop('Recorte em cache sem integridade: ',dest)
+  con<-DBI::dbConnect(RSQLite::SQLite(),src,flags=RSQLite::SQLITE_RO);on.exit(DBI::dbDisconnect(con),add=TRUE)
+  tiles<-DBI::dbGetQuery(con,'SELECT zoom_level AS z,tile_column AS x,tile_row AS t FROM tiles ORDER BY zoom_level,tile_column,tile_row');tiles$y<-2^tiles$z-1-tiles$t
+  geom<-qfi_poligonos_tiles(tiles);buffer<-sf::st_transform(mask,3857);ids<-which(lengths(sf::st_intersects(geom,buffer))>0)
+  if(!length(ids))return(NULL)
+  tmp<-paste0(dest,'.parcial');if(file.exists(tmp))unlink(tmp)
+  db<-DBI::dbConnect(RSQLite::SQLite(),tmp);on.exit(if(DBI::dbIsValid(db))DBI::dbDisconnect(db),add=TRUE)
+  DBI::dbExecute(db,'CREATE TABLE metadata(name TEXT PRIMARY KEY,value TEXT)');DBI::dbExecute(db,'CREATE TABLE tiles(zoom_level INTEGER,tile_column INTEGER,tile_row INTEGER,tile_data BLOB,PRIMARY KEY(zoom_level,tile_column,tile_row))')
+  meta<-DBI::dbGetQuery(con,'SELECT name,value FROM metadata');meta<-meta[!meta$name%in%c('format','recorte_circular_m','recorte_fonte_sha256','recorte_buffers_sha256','bounds'),]
+  bb<-sf::st_bbox(sf::st_transform(mask,4326));meta<-rbind(meta,data.frame(name=c('format','recorte_circular_m','recorte_fonte_sha256','recorte_buffers_sha256','bounds'),value=c('png',as.character(c$raio_detalhe_m),mq_hash(src),key,paste(as.numeric(bb),collapse=','))))
+  DBI::dbWriteTable(db,'metadata',meta,append=TRUE);bar<-mq_progress('Recorte 500 m',length(ids));on.exit(mq_progress_done(id=bar),add=TRUE);n<-0L
+  DBI::dbBegin(db)
+  for(j in seq_along(ids)) {
+    i<-ids[j];t<-tiles[i,];raw<-DBI::dbGetQuery(con,'SELECT tile_data FROM tiles WHERE zoom_level=? AND tile_column=? AND tile_row=?',params=list(t$z,t$x,t$t))$tile_data[[1]]
+    a<-mq_rgba(raw);bb<-sf::st_bbox(geom[i]);r<-terra::rast(nrows=dim(a)[1],ncols=dim(a)[2],xmin=bb[1],xmax=bb[3],ymin=bb[2],ymax=bb[4],crs='EPSG:3857')
+    m<-as.matrix(terra::rasterize(terra::vect(buffer),r,field=1,background=0),wide=TRUE)
+    a[,,4]<-a[,,4]*m
+    if(any(a[,,4]>0)){for(k in 1:3)a[,,k][a[,,4]==0]<-0;blob<-png::writePNG(a,target=raw());DBI::dbExecute(db,'INSERT INTO tiles VALUES(?,?,?,?)',params=list(t$z,t$x,t$t,list(blob)));n<-n+1L}
+    mq_progress_update(id=bar,set=j)
+  }
+  DBI::dbCommit(db);if(DBI::dbGetQuery(db,'PRAGMA integrity_check')[[1]]!='ok')mq_stop('Recorte MBTiles inconsistente.')
+  DBI::dbDisconnect(db)
+  if(!n){unlink(tmp);return(NULL)}
+  if(file.info(tmp)$size>950*1024^2)mq_stop('Recorte excede 950 MiB; divida a área. Parcial preservado.')
+  if(!file.rename(tmp,dest))mq_stop('Falha ao finalizar recorte.');mq_seal(dest)
+}
+# Tiles locais completamente opacos substituem download, sem misturar sua origem ao cache remoto.
+mq_available_tiles <- function(paths) {
+  result<-list()
+  for(p in paths) {
+    con<-DBI::dbConnect(RSQLite::SQLite(),p,flags=RSQLite::SQLITE_RO)
+    tryCatch({
+      meta<-DBI::dbGetQuery(con,'SELECT name,value FROM metadata');d<-DBI::dbGetQuery(con,'SELECT zoom_level AS z,tile_column AS x,tile_row AS t FROM tiles');d$y<-2^d$z-1-d$t
+      fmt<-meta$value[match('format',meta$name)]
+      if(!fmt%in%c('jpg','jpeg')) {
+        good<-vapply(seq_len(nrow(d)),function(i){t<-d[i,];raw<-DBI::dbGetQuery(con,'SELECT tile_data FROM tiles WHERE zoom_level=? AND tile_column=? AND tile_row=?',params=list(t$z,t$x,t$t))$tile_data[[1]];all(mq_rgba(raw)[,,4]>0)},logical(1));d<-d[good,]
+      }
+      result[[length(result)+1]]<-d[,c('z','x','y')]
+    },finally=DBI::dbDisconnect(con))
+  }
+  if(length(result))unique(data.table::as.data.table(do.call(rbind,result)))else data.table::data.table(z=integer(),x=integer(),y=integer())
+}
+mq_download <- function(centers,provided,c,scratch,report) {
+  if(!nrow(centers))return(list(paths=character(),status='sem_centros'))
+  if(!isTRUE(c$baixar_imagem_detalhe))c$confirmar_download<-FALSE
+  gp<-file.path(scratch,'centros_download.gpkg');x<-centers;x$UC<-'Projeto';sf::st_write(x,gp,layer='centros',quiet=TRUE)
+  cfg<-list(gpkg=gp,camada='centros',campo_uc='UC',url_xyz=c$url_xyz,cabecalhos=c$cabecalhos_xyz,fonte=c$fonte_xyz,licenca=c$licenca_xyz,atribuicao=c$atribuicao_xyz,data_imagem='não informada',resolucao_nativa_m='não informada',versao_acervo=c$versao_acervo,saida=c$cache_dir,raio_m=c$raio_detalhe_m,zooms=c$zooms_detalhe,executar_download=TRUE,intervalo_s=c$intervalo_download_s,tentativas=c$tentativas_download,timeout_s=30,max_tiles=c$max_tiles,max_tiles_por_feicao=10000,estimativa_kb_tile=100,max_mib_mbtiles=950)
+  qfi_validar(cfg);message('Planejando tiles e conferindo cache; nenhum download de detalhe iniciado.')
+  plan<-qfi_planejar(cfg)$plano;local<-mq_available_tiles(provided);required<-plan[!local,on=c('z','x','y')]
+  sourceid<-substr(qfi_hash(list(cfg$url_xyz,cfg$cabecalhos,cfg$fonte,cfg$versao_acervo)),1,24)
+  cache<-file.path(c$cache_dir,'cache',sourceid);dir.create(cache,recursive=TRUE,showWarnings=FALSE)
+  db<-qfi_abrir_cache(file.path(cache,'tiles.sqlite'));on.exit(DBI::dbDisconnect(db),add=TRUE)
+  # Importar apenas caches com fingerprint da mesma fonte/acervo. Headers nunca são gravados.
+  legacy_ids<-sourceid
+  if(grepl('^https://mt1.google.com/vt/',cfg$url_xyz))legacy_ids<-unique(c(sourceid,substr(qfi_hash(list(cfg$url_xyz,cfg$cabecalhos,'wms',cfg$versao_acervo)),1,24)))
+  for(root in c$caches_adicionais) {
+    others<-list.files(root,pattern='tiles.sqlite$',recursive=TRUE,full.names=TRUE)
+    for(p in others[basename(dirname(others))%in%legacy_ids])if(normalizePath(p,winslash='/',mustWork=FALSE)!=normalizePath(file.path(cache,'tiles.sqlite'),winslash='/',mustWork=FALSE)) {
+      old<-DBI::dbConnect(RSQLite::SQLite(),p,flags=RSQLite::SQLITE_RO)
+      tryCatch({for(i in seq_len(nrow(required))){t<-required[i];if(is.null(qfi_cache_get(db,t$z,t$x,t$y))){a<-qfi_cache_get(old,t$z,t$x,t$y);if(!is.null(a))qfi_cache_put(db,t$z,t$x,t$y,list(raw=a$data[[1]],formato=a$formato,largura=a$largura,altura=a$altura))}}},finally=DBI::dbDisconnect(old))
+    }
+  }
+  present<-vapply(seq_len(nrow(required)),function(i){t<-required[i];!is.null(qfi_cache_get(db,t$z,t$x,t$y))},logical(1));missing<-required[!present]
+  estimate<-list(centros=nrow(centers),abrangencia=attr(centers,'abrangencia'),tiles=nrow(plan),locais=nrow(plan)-nrow(required),cache=sum(present),faltantes=nrow(missing),MiB_estimados=round(nrow(missing)*100/1024,1),minutos_minimos_intervalo=round(nrow(missing)*cfg$intervalo_s/60,1))
+  mq_json(estimate,file.path(report,'plano_download.json'));mq_csv(plan,file.path(report,'tiles_planejados.csv'))
+  message(sprintf('DETALHE: %d centros | %d tiles locais | %d em cache | %d a baixar | ~%.1f MiB | mínimo %.1f min só de intervalos; rede, gravação e recorte acrescentam tempo.',estimate$centros,estimate$locais,estimate$cache,estimate$faltantes,estimate$MiB_estimados,estimate$minutos_minimos_intervalo))
+  accepted<-c$confirmar_download
+  if(nrow(missing)&&is.null(accepted)) {
+    if(!interactive())mq_stop('Download requer confirmação: use confirmar_download=TRUE para autorizar ou FALSE para seguir com fontes locais. Consulte plano_download.json.')
+    answer<-toupper(trimws(readline('Baixar detalhe? [S] sim / [N] continuar sem novo download / [C] cancelar: ')))
+    if(!answer%in%c('S','N'))mq_stop('Execução cancelada; nenhum novo download de detalhe autorizado.');accepted<-answer=='S'
+  }
+  failures<-list();st<-'cache_completo'
+  if(nrow(missing)&&isTRUE(accepted)) {
+    bar<-mq_progress('Download detalhe',nrow(missing));on.exit(mq_progress_done(id=bar),add=TRUE)
+    for(i in seq_len(nrow(missing))) {
+      t<-missing[i];r<-tryCatch(qfi_buscar(cfg,t$z,t$x,t$y),error=function(e)list(ok=FALSE,motivo=conditionMessage(e),interromper=TRUE))
+      if(isTRUE(r$ok))qfi_cache_put(db,t$z,t$x,t$y,r)else failures[[length(failures)+1]]<-data.frame(z=t$z,x=t$x,y=t$y,motivo=r$motivo)
+      mq_progress_update(id=bar,set=i,status=paste(length(failures),'falhas'))
+      if(isTRUE(r$interromper)||length(failures)>=10)break
+    }
+    st<-if(length(failures))'download_incompleto'else 'download_completo'
+  }else if(nrow(missing))st<-'download_nao_autorizado'
+  if(length(failures))mq_csv(do.call(rbind,failures),file.path(report,'falhas_download.csv'))
+  good<-vapply(seq_len(nrow(required)),function(i){t<-required[i];!is.null(qfi_cache_get(db,t$z,t$x,t$y))},logical(1))
+  ready<-required[good];paths<-character()
+  if(nrow(ready)){id<-substr(qfi_hash(list(sourceid,ready)),1,20);ex<-qfi_exportar(db,ready,cfg,c$cache_dir,id);paths<-ex$arquivo[ex$status=='completo'];if(any(ex$status!='completo'))st<-'exportacao_detalhe_incompleta'}
+  mq_json(list(status=st,faltantes_apos=sum(!good),novos_confirmados=isTRUE(accepted)),file.path(report,'resultado_download.json'))
+  list(paths=paths,status=st)
+}
+mq_sentinel_covers <- function(path,context) {
+  tryCatch({
+    r<-terra::rast(path);if(terra::nlyr(r)<3)return(FALSE)
+    if(inherits(context,'sfc'))context<-sf::st_sf(geometry=context)
+    a<-terra::project(terra::vect(context),terra::crs(r));b<-terra::ext(a);e<-terra::ext(r)
+    # Tolerância submicrométrica apenas para arredondamento de CRS; pixels continuam todos validados.
+    eps<-1e-6
+    if(b$xmin<e$xmin-eps||b$xmax>e$xmax+eps||b$ymin<e$ymin-eps||b$ymax>e$ymax+eps)return(FALSE)
+    # Avaliar todos os pixels do contexto, não apenas os centros.
+    z<-terra::crop(r,b);inside<-terra::rasterize(a,z[[1]],field=1,background=NA,touches=FALSE)
+    valid<-if(terra::nlyr(z)>=4)!is.na(z[[4]])&z[[4]]>0 else !is.na(z[[1]])
+    bad<-terra::global(terra::ifel(!is.na(inside)&!valid,1,0),'sum',na.rm=TRUE)[1,1]
+    is.finite(bad)&&bad==0
+  },error=function(e)FALSE)
+}
+mq_sentinel_evidence <- function(p) {
+  side<-paste0(p,'.fonte.json')
+  if(file.exists(side)) {
+    d<-jsonlite::read_json(side,simplifyVector=TRUE)
+    if(identical(d$produto,'Sentinel-2 L2A')&&identical(d$sha256,mq_hash(p))&&identical(as.numeric(d$resolucao_nativa_m),10))return(d)
+    return(NULL)
+  }
+  # Compatibilidade com pacotes públicos Monitora: cenas registradas junto ao projeto.
+  scenes<-file.path(dirname(dirname(p)),'cenas_sentinel.csv')
+  if(!file.exists(scenes)||tolower(tools::file_ext(p))!='mbtiles')return(NULL)
+  con<-DBI::dbConnect(RSQLite::SQLite(),p,flags=RSQLite::SQLITE_RO)
+  meta<-tryCatch(DBI::dbGetQuery(con,'SELECT name,value FROM metadata'),finally=DBI::dbDisconnect(con))
+  if(!any(grepl('Sentinel-2',meta$value[meta$name%in%c('description','name')],fixed=TRUE)))return(NULL)
+  d<-data.table::fread(scenes);if(!all(c('item','data','fonte')%in%names(d))||!nrow(d)||any(!grepl('^https://sentinel-cogs\\.s3\\.',d$fonte)))return(NULL)
+  list(produto='Sentinel-2 L2A',resolucao_nativa_m=10,sha256=mq_hash(p),versao_acervo='legado',cenas=as.data.frame(d),origem='cenas do pacote Monitora fornecido')
+}
+mq_sentinel <- function(context,points,c,scratch,report) {
+  key<-digest::digest(list(sf::st_as_binary(context),sf::st_crs(context)$wkt,c$versao_acervo,'sentinel_z14_v2'))
+  cache<-file.path(c$cache_dir,'sentinel');dir.create(cache,recursive=TRUE,showWarnings=FALSE)
+  target<-file.path(cache,paste0(key,'.mbtiles'))
+  candidates<-unique(c(c$sentinel_arquivo,target,list.files(cache,pattern='\\.mbtiles$',full.names=TRUE),unlist(lapply(c$caches_adicionais,function(d)list.files(d,pattern='\\.mbtiles$',recursive=TRUE,full.names=TRUE)))))
+  for(p in candidates[file.exists(candidates)]) {
+    ev<-tryCatch(mq_sentinel_evidence(p),error=function(e)NULL)
+    explicit<-!is.null(c$sentinel_arquivo)&&identical(p,c$sentinel_arquivo)
+    compatible<-!is.null(ev)&&(identical(ev$versao_acervo,c$versao_acervo)||(explicit&&!isTRUE(c$renovar_imagens)))
+    if(compatible&&!isTRUE(c$renovar_imagens)&&mq_sentinel_covers(p,context)) {
+      ev$acao<-'reutilizado';ev$arquivo<-p;mq_json(ev,file.path(report,'sentinel_fonte.json'));return(p)
+    }
+  }
+  bb<-sf::st_bbox(sf::st_transform(context,3857));mib<-prod(c(bb[3]-bb[1],bb[4]-bb[2])/9.55462853565)*3/1024^2
+  estimate<-list(RGB_bruto_MiB=round(mib,1),observacao='Tamanho RGB sem compressão; tráfego depende das cenas e blocos COG. Tempo depende da rede, pode levar minutos.')
+  mq_json(estimate,file.path(report,'plano_sentinel.json'))
+  message(sprintf('Sentinel offline: contexto ~%.1f MiB de RGB bruto. Tráfego pode ser maior; obtenção pode levar minutos. Cache compatível insuficiente.',mib))
+  allowed<-c$confirmar_sentinel
+  if(is.null(allowed)&&interactive())allowed<-identical(toupper(trimws(readline('Autorizar aquisição do Sentinel obrigatório? [S/N]: '))),'S')
+  if(!isTRUE(allowed))mq_stop('Sentinel não autorizado e sem cache suficiente. Entrega mínima bloqueada; use confirmar_sentinel=TRUE após conferir plano_sentinel.json.')
+  bar<-mq_progress('Sentinel contexto',NA);on.exit(mq_progress_done(id=bar),add=TRUE)
+  a<-sf::st_sf(geometry=context)
+  if(is.null(points)||!nrow(points))points<-suppressWarnings(sf::st_point_on_surface(a))
+  s<-monitora_qfield_sentinel(points,scratch,limite=a)
+  partial<-file.path(scratch,'sentinel_contexto.mbtiles');monitora_qfield_mbtiles(s$rgb,partial,s$nota)
+  if(!mq_sentinel_covers(partial,context))mq_stop('Sentinel não cobre integralmente o contexto. Entrega mínima bloqueada; cache anterior preservado.')
+  if(file.exists(target)&&!mq_verified(target))mq_stop('Sentinel em cache sem integridade: ',target)
+  if(!file.copy(partial,target,overwrite=FALSE))mq_stop('Falha ao armazenar Sentinel no cache.');mq_seal(target)
+  ev<-list(produto='Sentinel-2 L2A',resolucao_nativa_m=10,versao_acervo=c$versao_acervo,sha256=mq_hash(target),cenas=as.data.frame(s$metadados),nota=s$nota)
+  mq_json(ev,paste0(target,'.fonte.json'));mq_csv(s$metadados,file.path(report,'cenas_sentinel.csv'));ev$acao<-'adquirido';ev$arquivo<-target;mq_json(ev,file.path(report,'sentinel_fonte.json'));target
+}
+mq_imagery <- function(input,root,layers,ae,coverage,c,scratch,report) {
+  c$cache_dir<-normalizePath(c$cache_dir,winslash='/',mustWork=FALSE)
+  if(c$renovar_imagens)c$versao_acervo<-paste(c$versao_acervo,format(Sys.time(),'%Y%m%d%H%M%S'),sep='_')
+  # Uma trava protege downloads/recortes contra concorrência. Nunca limpa o cache.
+  dir.create(c$cache_dir,recursive=TRUE,showWarnings=FALSE);lock<-file.path(c$cache_dir,'EM_EXECUCAO_QFIELD')
+  if(!dir.create(lock,showWarnings=FALSE))mq_stop('Cache em uso ou trava remanescente: ',lock)
+  on.exit(unlink(lock,recursive=TRUE),add=TRUE)
+  centers<-mq_centers(layers,c,sf::st_crs(ae));mask<-mq_mask(centers,c)
+  if(nrow(centers)) {
+    sf::st_write(centers,file.path(report,'centros_recorte.gpkg'),layer='centros',quiet=TRUE)
+    sf::st_write(sf::st_sf(raio_m=c$raio_detalhe_m,geometry=mask),file.path(report,'centros_recorte.gpkg'),layer='uniao_raios',quiet=TRUE,append=FALSE)
+  }else message('Sem centros válidos para detalhe; grade completa não foi usada automaticamente.')
+  local<-list.files(input,pattern='\\.mbtiles$',full.names=TRUE,ignore.case=TRUE)
+  detail<-character();regional<-character()
+  for(p in local) {
+    con<-DBI::dbConnect(RSQLite::SQLite(),p,flags=RSQLite::SQLITE_RO)
+    z<-tryCatch(DBI::dbGetQuery(con,'SELECT max(zoom_level) AS z FROM tiles')$z,finally=DBI::dbDisconnect(con))
+    if(is.finite(z)&&z>=16)detail<-c(detail,p)else regional<-c(regional,p)
+  }
+  download<-mq_download(centers,detail,c,scratch,report)
+  detail<-unique(c(detail,download$paths));cuts<-character();audit<-list()
+  for(p in detail)if(length(mask)&&!all(sf::st_is_empty(mask))) {
+    cut<-mq_clip_mb(p,mask,c,report)
+    audit[[length(audit)+1]]<-data.frame(fonte=p,sha256_fonte=mq_hash(p),recorte=if(is.null(cut))''else cut,raio_m=c$raio_detalhe_m,centros=nrow(centers),bytes_antes=file.info(p)$size,bytes_depois=if(is.null(cut))0 else file.info(cut)$size)
+    if(!is.null(cut))cuts<-c(cuts,cut)
+  }
+  if(length(audit))mq_csv(do.call(rbind,audit),file.path(report,'auditoria_recorte.csv'))
+  ucs<-Filter(function(l)l$papel=='limites_uc',layers)
+  context<-sf::st_geometry(ae);for(l in ucs)context<-c(context,sf::st_geometry(l$x))
+  if(nrow(centers))context<-c(context,mask)
+  context<-sf::st_buffer(sf::st_union(context),c$margem_contexto_m)
+  sentinel<-mq_sentinel(context,coverage,c,scratch,report)
+  additional<-list.files(input,pattern='\\.(tif|tiff|img|asc)$',full.names=TRUE,ignore.case=TRUE)
+  paths<-c(cuts,additional,regional,sentinel)
+  ras<-mq_rasters(input,file.path(root,'01_qfield/mapas'),coverage,report,paths=paths)
+  for(i in seq_along(ras)) {
+    if(i<=length(cuts))ras[[i]]$nome<-paste0('detalhe_raio_500m',if(length(cuts)>1)paste0('_',sprintf('%02d',i))else '')
+    if(i==length(ras))ras[[i]]$nome<-'Sentinel-2 — contexto 10 m, não alta resolução'
+  }
+  attr(ras,'download_status')<-download$status
+  attr(ras,'contexto')<-'Sentinel cobre integralmente o contexto de UC/AEs/raios; Google Satellite online incluído desligado.'
+  ras
+}
+
+# Ler apenas os tiles dos pontos: evita materializar a extensão inteira de MBTiles esparsos.
+mq_mb_visible <- function(path,points) {
+  con<-DBI::dbConnect(RSQLite::SQLite(),path,flags=RSQLite::SQLITE_RO);on.exit(DBI::dbDisconnect(con),add=TRUE)
+  z<-DBI::dbGetQuery(con,'SELECT max(zoom_level) AS z FROM tiles')$z;h<-20037508.342789244
+  xy<-sf::st_coordinates(sf::st_transform(points,3857));fx<-(xy[,1]+h)/(2*h)*2^z;fy<-(h-xy[,2])/(2*h)*2^z
+  tx<-floor(fx);ty<-floor(fy);visible<-rep(FALSE,nrow(points));valid<-is.finite(tx)&is.finite(ty)&tx>=0&ty>=0&tx<2^z&ty<2^z
+  groups<-split(which(valid),paste(tx[valid],ty[valid],sep='/'))
+  for(ix in groups) {
+    d<-DBI::dbGetQuery(con,'SELECT tile_data FROM tiles WHERE zoom_level=? AND tile_column=? AND tile_row=?',params=list(z,tx[ix[1]],2^z-1-ty[ix[1]]))
+    if(!nrow(d))next
+    a<-mq_rgba(d$tile_data[[1]]);nr<-dim(a)[1];nc<-dim(a)[2]
+    row<-pmin(nr,floor((fy[ix]-ty[ix])*nr)+1L);col<-pmin(nc,floor((fx[ix]-tx[ix])*nc)+1L)
+    visible[ix]<-a[cbind(row,col,rep(4L,length(ix)))]>0
+  }
+  visible
+}
+
+mq_rasters <- function(entrada,destino,points,report,paths=NULL) {
   files<-list.files(entrada,pattern='\\.(mbtiles|tif|tiff|img|asc)$',full.names=TRUE,ignore.case=TRUE)
+  if(!is.null(paths))files<-paths
   out<-list();aud<-list();coverage_all<-if(is.null(points))logical()else rep(FALSE,nrow(points))
   for(f in files) {
-    monitora_qfield_caminho_local(basename(f),entrada)
+    monitora_qfield_caminho_local(basename(f),dirname(f))
     ext<-tolower(tools::file_ext(f));r<-terra::rast(f)
     if(!nzchar(terra::crs(r)))mq_stop('Raster sem CRS: ',basename(f))
     meta<-list();zmin<-zmax<-NA_integer_
@@ -570,7 +1239,7 @@ mq_rasters <- function(entrada,destino,points,report) {
     }
     covered<-NA_integer_
     if(!is.null(points)&&nrow(points)) {
-      p<-terra::project(terra::vect(points),terra::crs(r));val<-terra::extract(r,p,method='simple');visible<-rowSums(!is.na(val[,-1,drop=FALSE]))>0 & if(terra::nlyr(r)>=4)!is.na(val[[5]]) & val[[5]]>0 else TRUE;covered<-sum(visible);coverage_all<-coverage_all|visible
+      if(ext=='mbtiles')visible<-mq_mb_visible(f,points)else {p<-terra::project(terra::vect(points),terra::crs(r));val<-terra::extract(r,p,method='simple');visible<-rowSums(!is.na(val[,-1,drop=FALSE]))>0 & if(terra::nlyr(r)>=4)!is.na(val[[5]]) & val[[5]]>0 else TRUE};covered<-sum(visible);coverage_all<-coverage_all|visible
     }
     out[[length(out)+1]]<-list(arquivo=nm,nome=if(ext=='mbtiles')paste0('Imagem_',length(out)+1,'_z',zmax)else paste0('Raster_',length(out)+1),epsg=sf::st_crs(terra::crs(r))$epsg,wkt=terra::crs(r),bandas=terra::nlyr(r),ativo=TRUE)
     aud[[length(aud)+1]]<-data.frame(arquivo=basename(f),destino=nm,sha256=mq_hash(dst),zoom_min=zmin,zoom_max=zmax,pontos_com_valor=covered,pontos_avaliados=if(is.null(points))0 else nrow(points),observacao='Valor no ponto não garante cobertura da transecção, acessos ou ausência de nuvens. Resolução nativa não inferida pelo zoom.')
@@ -614,6 +1283,23 @@ mq_qgs <- function(layers,rasters,ae,c,path) {
     renderer<-if(l$bandas>=3)paste0('<rasterrenderer type="multibandcolor" redBand="1" greenBand="2" blueBand="3" alphaBand="',if(l$bandas>=4)4 else -1,'" opacity="1"/>')else '<rasterrenderer type="singlebandgray" grayBand="1" alphaBand="-1" opacity="1"><contrastEnhancement><minValue>0</minValue><maxValue>255</maxValue><algorithm>StretchToMinimumMaximum</algorithm></contrastEnhancement></rasterrenderer>'
     xml<-c(xml,paste0('<maplayer type="raster"><id>',id,'</id><datasource>',e(source),'</datasource><layername>',e(l$nome),'</layername><srs>',mq_srs(l$wkt),'</srs><provider>gdal</provider><pipe>',renderer,'</pipe></maplayer>'))
   }
+  google_id <- 'monitora_google_satellite_online'
+  google_nome <- 'Google Satellite'
+  google_fonte <- 'crs=EPSG:3857&format&type=xyz&url=https://mt1.google.com/vt/lyrs%3Ds%26x%3D%7Bx%7D%26y%3D%7By%7D%26z%3D%7Bz%7D&zmax=20&zmin=0'
+  tree <- c(tree, paste0('<layer-tree-layer id="', google_id, '" name="', e(google_nome), '" source="', e(google_fonte), '" providerKey="wms" checked="Qt::Unchecked" expanded="0"/>'))
+  mundo_3857 <- '<extent><xmin>-20037508.342789244</xmin><ymin>-20037508.342789248</ymin><xmax>20037508.342789244</xmax><ymax>20037508.342789248</ymax></extent><wgs84extent><xmin>-180</xmin><ymin>-85.0511287798066</ymin><xmax>180</xmax><ymax>85.0511287798066</ymax></wgs84extent>'
+  xml <- c(xml, paste0(
+    '<maplayer type="raster" hasScaleBasedVisibilityFlag="0" minScale="100000000" maxScale="0">',
+    mundo_3857, '<id>', google_id, '</id><datasource>', e(google_fonte),
+    '</datasource><layername>', e(google_nome), '</layername><srs>', mq_srs(3857),
+    '</srs><attribution href="https://www.google.com/permissions/geoguidelines/">Google</attribution>',
+    '<provider>wms</provider><customproperties><Option type="Map">',
+    '<Option name="QFieldSync/action" type="QString" value="no_action"/>',
+    '<Option name="QFieldSync/cloud_action" type="QString" value="no_action"/>',
+    '<Option name="QFieldSync/remoteLayerId" type="QString" value="', google_id, '"/>',
+    '</Option></customproperties><pipe><provider><resampling enabled="false" zoomedInResamplingMethod="nearestNeighbour" maxOversampling="2" zoomedOutResamplingMethod="nearestNeighbour"/></provider>',
+    '<rasterrenderer band="1" opacity="1" type="singlebandcolordata" alphaBand="-1"/></pipe></maplayer>'
+  ))
   cr<-mq_srs(sf::st_crs(ae))
   coords<-paste0('<ProjectDisplaySettings CoordinateAxisOrder="Default" CoordinateType="MapGeographic"><GeographicCoordinateFormat id="geographiccoordinate"><Option type="Map"><Option name="angle_format" type="QString" value="DecimalDegrees"/><Option name="decimals" type="int" value="6"/><Option name="show_suffix" type="bool" value="false"/><Option name="show_thousand_separator" type="bool" value="false"/></Option></GeographicCoordinateFormat><CoordinateCustomCrs>',mq_srs(4326),'</CoordinateCustomCrs></ProjectDisplaySettings>')
   document<-paste0('<?xml version="1.0" encoding="UTF-8"?><qgis version="3.44.9" projectname="Monitora QField"><title>',e(c$projeto),'</title><homePath path=""/><projectCrs>',cr,'</projectCrs><mapcanvas><units>meters</units>',extent,'<destinationsrs>',cr,'</destinationsrs></mapcanvas><layer-tree-group name="" checked="Qt::Checked">',paste(tree,collapse=''),'</layer-tree-group><projectlayers>',paste(xml,collapse=''),'</projectlayers><properties><SpatialRefSys><ProjectionsEnabled type="int">1</ProjectionsEnabled><ProjectCrs type="QString">EPSG:',sf::st_crs(ae)$epsg,'</ProjectCrs></SpatialRefSys><Paths><Absolute type="bool">false</Absolute></Paths><PositionPrecision><Automatic type="bool">false</Automatic><DecimalPlaces type="int">6</DecimalPlaces></PositionPrecision></properties><ProjectViewSettings><DefaultViewExtent xmin="',b[1],'" ymin="',b[2],'" xmax="',b[3],'" ymax="',b[4],'">',cr,'</DefaultViewExtent></ProjectViewSettings>',coords,'</qgis>')
@@ -687,9 +1373,9 @@ mq_overview <- function(layers,ae,path) {
 
 mq_report <- function(root,c,stages,status,notes,inventory) {
   r<-file.path(root,'02_relatorio');e<-monitora_qfield_xml
-  mq_csv(stages,file.path(r,'etapas.csv'));mq_json(c,file.path(r,'configuracao.json'));mq_csv(inventory,file.path(r,'fontes_e_checksums.csv'))
+  mq_csv(stages,file.path(r,'etapas.csv'));mq_json(utils::modifyList(c,list(url_xyz='configurada; omitida do relatório',cabecalhos_xyz=as.list(names(c$cabecalhos_xyz)))),file.path(r,'configuracao.json'));mq_csv(inventory,file.path(r,'fontes_e_checksums.csv'))
   trs<-apply(stages,1,function(v)paste0('<tr>',paste0('<td>',e(v),'</td>',collapse=''),'</tr>'))
-  txt<-c('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Relatório de execução — Monitora QField</title><style>body{font:16px sans-serif;max-width:1100px;margin:40px auto;line-height:1.5;padding:0 20px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:8px;text-align:left}h1{color:#165c46}</style>',paste0('<h1>',e(c$projeto),'</h1><p>Versão 0.1.0 · ',e(status),'</p>'),'<p>Produto de planejamento e navegação. Homologação automática não substitui verificação em QField no aparelho, em modo avião, nem aplicação do roteiro em campo.</p>',paste0('<ul>',paste0('<li>',e(notes),'</li>',collapse=''),'</ul>'),paste0('<table><thead><tr>',paste0('<th>',e(names(stages)),'</th>',collapse=''),'</tr></thead><tbody>',paste(trs,collapse=''),'</tbody></table>'),if(file.exists(file.path(r,'mapa_planejamento.png'))) '<p><img src="mapa_planejamento.png" alt="Visão geral das áreas e pontos" style="width:100%"></p>' else '', '<p>Detalhes: configuracao.json; consulta_uc.json; referencia_grade.json e cadastro_grade.gpkg (planejamento/expansão); camadas.csv; imagens.csv; legenda/fonte MapBiomas; diagnosticos/; fontes_e_checksums.csv; manifesto.csv.</p></html>')
+  txt<-c('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Relatório de execução — Monitora QField</title><style>body{font:16px sans-serif;max-width:1100px;margin:40px auto;line-height:1.5;padding:0 20px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:8px;text-align:left}h1{color:#165c46}</style>',paste0('<h1>',e(c$projeto),'</h1><p>Versão 0.2.0 · ',e(status),'</p>'),'<p>Produto de planejamento e navegação. Homologação automática não substitui verificação em QField no aparelho, em modo avião, nem aplicação do roteiro em campo.</p>',paste0('<ul>',paste0('<li>',e(notes),'</li>',collapse=''),'</ul>'),paste0('<table><thead><tr>',paste0('<th>',e(names(stages)),'</th>',collapse=''),'</tr></thead><tbody>',paste(trs,collapse=''),'</tbody></table>'),if(file.exists(file.path(r,'mapa_planejamento.png'))) '<p><img src="mapa_planejamento.png" alt="Visão geral das áreas e pontos" style="width:100%"></p>' else '', '<p>Detalhes: configuracao.json; consulta_uc.json; referencia_grade.json e cadastro_grade.gpkg (planejamento/expansão); camadas.csv; imagens.csv; legenda/fonte MapBiomas; diagnosticos/; fontes_e_checksums.csv; manifesto.csv.</p></html>')
   writeLines(enc2utf8(txt),file.path(r,'relatorio_execucao.html'),useBytes=TRUE)
 }
 
@@ -698,6 +1384,8 @@ monitora_criar_qfield <- function(config=MQ_CONFIG) {
   c$script_sha256<-if(!is.na(MQ_SCRIPT_ARQUIVO))mq_hash(MQ_SCRIPT_ARQUIVO)else NA_character_
   input<-normalizePath(c$entrada,winslash='/',mustWork=TRUE);out<-normalizePath(c$saida,winslash='/',mustWork=FALSE)
   if(tolower(input)==tolower(out) || startsWith(tolower(out),paste0(tolower(input),'/')) || startsWith(tolower(input),paste0(tolower(out),'/')))mq_stop('Entrada e saída precisam ser pastas separadas e não aninhadas.')
+  cache_abs<-normalizePath(c$cache_dir,winslash='/',mustWork=FALSE)
+  if(tolower(cache_abs)==tolower(input)||startsWith(tolower(cache_abs),paste0(tolower(input),'/')))mq_stop('Cache não pode ficar dentro da entrada.')
   slug<-monitora_qfield_slug(c$projeto);dir.create(out,recursive=TRUE,showWarnings=FALSE)
   final<-file.path(out,paste0(slug,'_',format(Sys.time(),'%Y%m%d_%H%M%S'),'_',substr(digest::digest(tempfile()),1,6)))
   root<-paste0(final,'.construcao');dir.create(root)
@@ -772,21 +1460,23 @@ monitora_criar_qfield <- function(config=MQ_CONFIG) {
     # Cobertura raster avaliada sobre todas as camadas pontuais, incluindo a grade quando presente.
     pg<-lapply(Filter(function(l)nrow(l$x)&&all(as.character(sf::st_geometry_type(l$x))=='POINT'),dat$camadas),function(l)sf::st_geometry(l$x))
     coverage<-if(length(pg))sf::st_sf(geometry=unique(do.call(base::c,pg)))else NULL
-    ras<-mq_rasters(input,file.path(root,'01_qfield','mapas'),coverage,report)
+    ras<-mq_imagery(input,root,dat$camadas,ae,coverage,c,scratch,report)
+    note<-c(note,attr(ras,'contexto'),paste('Detalhe:',attr(ras,'download_status')))
     cover<-attr(ras,'cobertura');if(cover$avaliados>0)note<-c(note,sprintf('Fundos locais: %d de %d pontos têm pixel válido. %d pontos sem imagem; a cobertura não comprova acesso ou transecção inteira.',cover$cobertos,cover$avaliados,cover$avaliados-cover$cobertos))
-    step('05_imagens',paste(length(ras),'rasters copiados; hashes e cobertura nos pontos conferidos. Nenhuma imagem adquirida automaticamente.'))
+    step('05_imagens',paste(length(ras),'rasters; Sentinel offline validado, detalhe recortado conforme centros, fontes/cache auditados.'))
     nms<-vapply(dat$camadas,`[[`,character(1),'nome');if(anyDuplicated(tolower(nms)))mq_stop('Nomes finais de camadas repetidos (incluindo UC/apoio); ajuste o manifesto.')
     dat$camadas<-mq_export(dat$camadas,root)
     mq_qgs(dat$camadas,ras,ae,c,file.path(root,'01_qfield','projeto.qgs'))
     step('06_exportacao','QGS, GeoPackages, CSV, KML e KMZ gerados e reabertos para conferência.')
     after<-vapply(files,mq_hash,character(1));if(!identical(unname(after),unname(inv$sha256)))mq_stop('Arquivo de entrada alterado durante a execução.')
-    guide<-c('MONITORA QFIELD — v0.1.0',paste('Projeto:',c$projeto),paste('Modo:',mode),note,'Coordenadas exibidas em latitude/longitude WGS84, graus decimais, seis casas. Cálculos em CRS métrico. Confirme posicionamento, identificação, labels, zoom e apoio editável no QField em modo avião.','Importe o ZIP em pasta nova. Não substitua apoio_campo.gpkg já preenchido.','Camadas PA são referências planejadas, não UAs instaladas. Não há envio automático ao QFieldCloud.','Relatório completo está na pasta 02_relatorio da entrega. Falhas opcionais constam nos atributos e no relatório.')
+    guide<-c('MONITORA QFIELD — v0.2.0',paste('Projeto:',c$projeto),paste('Modo:',mode),note,'Coordenadas exibidas em latitude/longitude WGS84, graus decimais, seis casas. Cálculos em CRS métrico. Confirme posicionamento, identificação, labels, zoom e apoio editável no QField em modo avião.','Importe o ZIP em pasta nova. Não substitua apoio_campo.gpkg já preenchido.','Camadas PA são referências planejadas, não UAs instaladas. Não há envio automático ao QFieldCloud.','Relatório completo está na pasta 02_relatorio da entrega. Falhas opcionais constam nos atributos e no relatório.')
     writeLines(enc2utf8(guide),file.path(root,'01_qfield','LEIA_ME.txt'),useBytes=TRUE)
     zipfile<-file.path(root,'01_qfield','pacote_qfield.zip');zip::zipr(zipfile,c('projeto.qgs','dados','mapas','LEIA_ME.txt'),root=file.path(root,'01_qfield'))
     z<-zip::zip_list(zipfile);if(!all(c('projeto.qgs','LEIA_ME.txt')%in%z$filename))mq_stop('Pacote QField incompleto.')
     step('07_pacote','ZIP independente com caminhos relativos; integridade das entradas preservada.')
     status<-'GERADO E VALIDADO AUTOMATICAMENTE; teste QField móvel pendente'
     if(length(ras)>0 && cover$cobertos<cover$avaliados)status<-paste(status,'; cobertura de imagens parcial')
+    if(attr(ras,'download_status')%in%c('download_incompleto','exportacao_detalhe_incompleta','download_nao_autorizado'))status<-paste(status,'; detalhe sem aquisição completa')
     mb_states<-unlist(lapply(dat$camadas,function(l)if('mb_status'%in%names(l$x))unique(l$x$mb_status)else NULL))
     if(any(grepl('^falha|sem_dado|codigo_sem_legenda',mb_states))){status<-paste(status,'; MapBiomas com pendências');note<-c(note,unique(mb_states[mb_states!='obtido']))}
     mq_overview(dat$camadas,ae,file.path(report,'mapa_planejamento.png'))
@@ -794,7 +1484,7 @@ monitora_criar_qfield <- function(config=MQ_CONFIG) {
     unlink(scratch,recursive=TRUE)
     fs<-list.files(root,recursive=TRUE,full.names=TRUE);fs<-fs[!file.info(fs)$isdir]
     mq_csv(data.frame(arquivo=substring(fs,nchar(root)+2),bytes=file.info(fs)$size,sha256=vapply(fs,mq_hash,character(1))),file.path(report,'manifesto.csv'))
-    mq_json(list(status=status,modo=mode,segundos=round(proc.time()[3]-t0,2),versao='0.1.0'),file.path(report,'resultado.json'))
+    mq_json(list(status=status,modo=mode,segundos=round(proc.time()[3]-t0,2),versao='0.2.0'),file.path(report,'resultado.json'))
     if(file.exists(final)||!file.rename(root,final))mq_stop('Falha ao promover pacote; construção preservada.')
     message('Concluído: ',final);list(pasta=final,status=status,modo=mode)
   },error=function(e){

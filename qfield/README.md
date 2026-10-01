@@ -1,13 +1,15 @@
 # Monitora — criação independente de projetos QField
 
-Script `monitora_criar_qfield.R`, versão 0.1.0. Execute em R/RStudio; não é necessário carregar o script biológico do Monitora. QGIS é usado na homologação, não como dependência de execução. Consulte `HOMOLOGACAO.md` para o alcance e as limitações da validação.
+Script `monitora_criar_qfield.R`, versão 0.2.0. Execute em R/RStudio; não é necessário carregar o script biológico do Monitora. QGIS é usado na homologação, não como dependência de execução. Consulte `HOMOLOGACAO.md` para o alcance e as limitações da validação.
+
+Consulte o manual pronto: [HTML](manual/manual_qfield_v0.2.0.html) · [PDF](manual/manual_qfield_v0.2.0.pdf). Ambos são arquivos versionados para disponibilização junto ao script no GitHub, sem executar R para gerar o manual.
 
 ## Início
 
 1. Crie duas pastas distintas: `qfield_input` e `qfield_output`.
 2. Coloque na entrada pelo menos uma camada de polígonos identificada como `areas_elegiveis`.
 3. Edite o bloco `MQ_CONFIG`, perto do início do script, com os caminhos absolutos. No Windows, prefira `/` nos caminhos.
-4. Instale, caso faltem: `sf`, `terra`, `xml2`, `zip`, `jsonlite`, `digest`, `httr`, `data.table`, `DBI`, `RSQLite`.
+4. Instale, caso faltem: `sf`, `terra`, `xml2`, `zip`, `jsonlite`, `digest`, `httr`, `data.table`, `DBI`, `RSQLite`, `cli`, `curl`, `png`, `jpeg`.
 5. Abra o script no RStudio e use **Source**. A conexão à internet é necessária para a consulta oficial às UCs federais. O MapBiomas também usa internet quando ativado.
 6. Consulte o relatório. Importe `01_qfield/pacote_qfield.zip` em uma pasta nova do QField e confira em modo avião.
 
@@ -37,11 +39,21 @@ Informe número **ou** percentual, nunca ambos. Exemplo: `list(n=40,percentual=N
 
 `auto` escolhe `montar` se encontrar grade, PAs, UAs, extremos ou transectos fornecidos. `montar` não cria pontos nem completa cotas. `planejar` rejeita essas camadas para impedir substituição acidental. Para adicionar UAs observadas a um planejamento gerado, faça uma montagem posterior com as camadas resultantes e as referências observadas.
 
+## Imagens, confirmação e cache
+
+`baixar_imagem_detalhe=TRUE` ativa o planejamento de aquisição. `confirmar_download=NULL` pergunta antes de baixar detalhe; `confirmar_sentinel=NULL` pergunta separadamente antes de obter Sentinel. `FALSE` recusa novas imagens daquele tipo; `TRUE` representa autorização explícita. Sem interação, uma confirmação necessária e não informada bloqueia a etapa. A falta de Sentinel offline válido bloqueia o pacote; a recusa de detalhe permite o fundo mínimo com a lacuna registrada.
+
+`centros_detalhe="auto"`: sem UAs, raios nos PAs prioritários e alternativos; com UAs, raios nos pontos médios de `verg_ini`/`verg_fin` pareados por identificador e ano. Não inclui toda a grade. Use `"UAs_e_PAs"` explicitamente para cobrir ambos. Somente uma camada genérica UAs sem extremos pareados não permite inventar pontos médios.
+
+Os níveis padrão são 16–18 e a fonte segue o script de download fornecido. Console e relatório informam tiles locais, em cache, faltantes, volume aproximado, tempo mínimo e progresso. Os tempos dependem de rede e processamento. `cache_dir` persiste fora das saídas; `caches_adicionais` permite importar acervos compatíveis. Tiles concluídos, recortes, Sentinel e resultados MapBiomas válidos são reaproveitados; falhas não são armazenadas como sucesso. Desativar download ainda permite aproveitar imagens já disponíveis. `renovar_imagens=TRUE` cria outra versão do acervo e pode exigir nova transferência. Preserve o cache entre execuções.
+
+Sentinel é verificado por proveniência e cobertura de pixels válidos em todo o contexto da UC/AE, com margem de 500 m. Isso não comprova ausência de nuvens. A consulta pode encerrar com insuficiência de cenas; nesse caso forneça um Sentinel documentado compatível, sem renomear outro sensor como Sentinel. Detalhe parcial nunca é apresentado como cobertura completa. Google Satellite inicia desmarcado, para uso opcional com conexão.
+
 ## Arquivos e papéis
 
 Formatos vetoriais: KML, KMZ, GeoPackage, shapefile completo diretamente ou em ZIP. O ZIP precisa conter SHP/SHX/DBF/PRJ e pode conter seus auxiliares. KMZ deve conter KML e imagens locais permitidas; referências externas não são executadas. Geometrias inválidas, CRS ausente, tipos mistos incompatíveis e perdas de feições bloqueiam a importação.
 
-Fundos: MBTiles raster e rasters georreferenciados TIF/TIFF, IMG e ASC. MBTiles vetorial não é aceito como imagem. Formatos com arquivos auxiliares devem ser fornecidos completos; prefira GeoTIFF autossuficiente. Imagens não são baixadas nem recortadas automaticamente. MBTiles fornecidos são copiados literalmente e conferidos por SHA-256. Raster não é uma extensão universal.
+Fundos: MBTiles raster e rasters georreferenciados TIF/TIFF, IMG e ASC. MBTiles vetorial não é aceito como imagem. Formatos com arquivos auxiliares devem ser fornecidos completos; prefira GeoTIFF autossuficiente. MBTiles de detalhe são recortados em raios de 500 m, preservando os originais. A camada resultante chama-se `detalhe_raio_500m`. Google Satellite online e Sentinel offline compõem o fundo mínimo obrigatório. Downloads exigem confirmação e os caches compatíveis são reaproveitados. Raster não é uma extensão universal.
 
 Nomes padronizados (arquivo sem extensão ou camada interna):
 
@@ -98,4 +110,8 @@ O relatório distingue geração validada automaticamente de homologação móve
 
 ## Testes
 
-No diretório raiz do repositório: `Rscript --vanilla qfield/tests/test_core.R`. Ensaios institucionais são locais e não distribuem bases biológicas. O script é derivado dos leitores espaciais da versão pública v3.0.6, com fonte identificada no cabeçalho.
+No diretório raiz do repositório: `Rscript --vanilla qfield/tests/test_core.R` e `Rscript --vanilla qfield/tests/test_imagery.R`. Ensaios institucionais são locais e não distribuem bases biológicas. O script é derivado dos leitores espaciais da versão pública v3.0.6, com fonte identificada no cabeçalho.
+
+## Publicação dos manuais
+
+Os dois arquivos prontos em `manual/` devem acompanhar a publicação do script e os assets da release. O GitHub exibe HTML como código na página do arquivo; o usuário pode baixar e abrir o HTML autossuficiente. Para um link HTML navegável, publicar essa pasta no GitHub Pages e atualizar o link do README junto à release. Essa ativação ainda não foi feita; os links atuais apontam aos arquivos entregues. O PDF já pode ser visualizado diretamente pelo GitHub após a publicação.
