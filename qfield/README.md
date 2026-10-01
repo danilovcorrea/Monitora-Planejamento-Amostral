@@ -1,8 +1,8 @@
 # Monitora — criação independente de projetos QField
 
-Script `monitora_criar_qfield.R`, versão 0.4.2. Execute em R/RStudio; não é necessário carregar o script biológico do Monitora. QGIS/PyQGIS é necessário para gerar o projeto de edição, os quatro layouts e mapas PDF/PNG (habilitados por padrão). Consulte `HOMOLOGACAO.md` para o alcance e as limitações da validação.
+Script `monitora_criar_qfield.R`, versão 0.4.3. Execute em R/RStudio; não é necessário carregar o script biológico do Monitora. QGIS/PyQGIS é necessário para gerar o projeto de edição, os quatro layouts e mapas PDF/PNG (habilitados por padrão). Consulte `HOMOLOGACAO.md` para o alcance e as limitações da validação.
 
-Consulte o manual pronto: [HTML](manual/manual_qfield_v0.4.2.html) · [PDF](manual/manual_qfield_v0.4.2.pdf). Ambos são arquivos versionados para disponibilização junto ao script no GitHub, sem executar R para gerar o manual.
+Consulte o manual pronto: [HTML](manual/manual_qfield_v0.4.3.html) · [PDF](manual/manual_qfield_v0.4.3.pdf). Ambos são arquivos versionados para disponibilização junto ao script no GitHub, sem executar R para gerar o manual.
 
 ## Início
 
@@ -116,13 +116,13 @@ No diretório raiz do repositório: `Rscript --vanilla qfield/tests/test_core.R`
 
 Os dois arquivos prontos em `manual/` devem acompanhar a publicação do script e os assets da release. O GitHub exibe HTML como código na página do arquivo; o usuário pode baixar e abrir o HTML autossuficiente. Para um link HTML navegável, publicar essa pasta no GitHub Pages e atualizar o link do README junto à release. Essa ativação ainda não foi feita; os links atuais apontam aos arquivos entregues. O PDF já pode ser visualizado diretamente pelo GitHub após a publicação.
 
-## Cotas cumulativas (v0.4.2)
+## Cotas cumulativas (v0.4.3)
 
 Vegetação habilitada por padrão; florestal e atributos adicionais desabilitados. Informe `formacao_campo`/`formacao_mapa` para classificação local ou use MapBiomas conservador. Campos rupestres e classes ambíguas exigem validação local. `cotas_formacao` recebe classe + n OU percentual. `cotas_atributos` é uma lista nomeada por campo, com uma tabela classe + n OU percentual por atributo. As margens são atendidas simultaneamente, não substituídas nem multiplicadas como se fossem independentes.
 
 O solver escolhe arredondamentos conjuntamente, mantém capacidades e PAs preservados e bloqueia conflitos antes das imagens. Alternativos padrão: dobro por combinação. Cotas personalizadas de alternativos acompanham as margens dos prioritários; veja as diferenças no manual, seções 12–13. Na montagem, apenas audita as cotas e preserva campos fornecidos; na expansão, verifica o contrato histórico. Consulte CSVs de cotas, combinações e o JSON de solução em `02_relatorio`.
 
-## Revisão após teste no celular (v0.4.2)
+## Revisão após teste no celular (v0.4.3)
 
 - `codigo_pa`: PA com ao menos cinco algarismos; `id_malha` calculado antes do recorte; originais e correspondência preservados ao migrar.
 - Um MBTiles de detalhe, `sat_escala_local`, com alpha e prioridade das fontes; `sat_escala_regional` é o Sentinel offline.
@@ -133,12 +133,18 @@ O solver escolhe arredondamentos conjuntamente, mantém capacidades e PAs preser
 
 Abra `ABRA_AQUI.html` na entrega. Edite no produto QGIS; não há sincronização automática dessas edições com o ZIP de campo ou exportações anteriores.
 
-Na revisão cartográfica v0.4.2, o QGIS e as legendas usam nomes completos. UCs são identificadas pelos atributos oficiais ICMBio; o localizador de UC só aparece com interseção federal. Estados e biomas usam IBGE 2025, com cache persistente (~27 MiB na primeira obtenção), e são entregues em `05_qgis/contexto`. A localização de estados considera geometria original; a simplificação serve somente ao desenho regional.
+Na revisão cartográfica v0.4.3, o QGIS e as legendas usam nomes completos. UCs são identificadas pelos atributos oficiais ICMBio; o localizador de UC só aparece com interseção federal. Estados e biomas usam IBGE 2025, com cache persistente (~27 MiB na primeira obtenção), e são entregues em `05_qgis/contexto`. A localização de estados considera geometria original; a simplificação serve somente ao desenho regional.
 
-## Restrições viárias e protocolo (v0.4.2)
+## Restrições viárias e protocolo (v0.4.3)
 
 Use arquivos/camadas `estradas_pavimentadas`, `estradas_terra` e `trilhas_preexistentes`. Flags `usar_*`: NULL detecta, TRUE exige, FALSE somente exibe. No perfil campestre, candidatos precisam admitir um segmento N/L/S/O a pelo menos 100/50/5 m das fontes habilitadas. A grade e o denominador percentual são preservados; as cotas usam apenas candidatos disponíveis. Linhas usam eixo + metade de `largura_m` quando informada; polígonos usam a borda. Nomes antigos exigem mapeamento explícito.
 
 O perfil Ilha não aplica os procedimentos campestres. Declare `parametros_protocolo=list(transecto_m=...,grade_m=c(...,...))` conforme o protocolo utilizado. O perfil personalizado exige também direções e distâncias próprias. Vias são auditadas em `restricoes_viarias.json` e CSVs de pontos/direções; ausência de vetor não equivale à ausência de obstáculo.
 
 Legendas dos localizadores acompanham os biomas efetivamente representados; fragmentos abaixo de `localizador_bioma_min_mm2` (padrão 0,5 mm² no papel) são suprimidos somente nessa representação.
+
+## Área pequena / seleção personalizada
+
+`perfil` define o protocolo; `modo` define planejar/montar/expandir. Para não exigir campos/savanas, configure `perfil="personalizado"`, `estratificar_vegetacao=FALSE` e `estratificar_por_atributos=FALSE`. MapBiomas permanece informativo. `politica_insuficiencia="usar_disponiveis"` limita os pedidos ao disponível, prioriza prioritários e preserva históricos; o padrão continua `"bloquear"`. A política flexível é incompatível com cotas explícitas. Quantitativos e déficits são registrados em `selecao_quantidades.csv`; classes por categoria em `distribuicao_cobertura.csv`.
+
+Exemplo sem regras viárias: `parametros_protocolo=list(transecto_m=50,grade_m=c(100,100),direcoes=character(),distancias_viarias_m=numeric())`. Não equivale a cumprir o procedimento campestre. A grade/IDs e as restrições viárias explicitamente ativadas permanecem preservados.

@@ -11,9 +11,9 @@ mq_protocol <- function(c) {
     c$distancia_min_m<-NA_real_;c$deslocamento_max_m<-NA_real_
     c$direcoes_campo<-character();c$distancias_viarias_m<-numeric()
     if(c$perfil=='personalizado') {
-      if(!all(c('direcoes','distancias_viarias_m')%in%names(p))||!length(p$direcoes)||any(!p$direcoes%in%c('N','L','S','O'))||anyDuplicated(p$direcoes))mq_stop('Personalizado: declare direcoes e distancias_viarias_m.')
+      if(!all(c('direcoes','distancias_viarias_m')%in%names(p))||any(!p$direcoes%in%c('N','L','S','O'))||anyDuplicated(p$direcoes))mq_stop('Personalizado: declare direcoes e distancias_viarias_m.')
       d<-p$distancias_viarias_m
-      if(!is.numeric(d)||!length(d)||is.null(names(d))||anyDuplicated(names(d))||any(!names(d)%in%c('estradas_pavimentadas','estradas_terra','trilhas_preexistentes'))||any(!is.finite(d)|d<0))mq_stop('Distâncias viárias personalizadas inválidas.')
+      if(!is.numeric(d)||(length(d)>0&&(is.null(names(d))||anyDuplicated(names(d))||any(!names(d)%in%c('estradas_pavimentadas','estradas_terra','trilhas_preexistentes'))||any(!is.finite(d)|d<0)||!length(p$direcoes))))mq_stop('Distâncias viárias personalizadas inválidas.')
       c$direcoes_campo<-p$direcoes;c$distancias_viarias_m<-d
     }
   }
