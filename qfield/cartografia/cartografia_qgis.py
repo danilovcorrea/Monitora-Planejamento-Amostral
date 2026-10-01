@@ -149,7 +149,7 @@ def build(config_file):
  north=assets/'norte.svg';north.write_text('<svg xmlns="http://www.w3.org/2000/svg" width="50" height="95" viewBox="0 0 50 95"><text x="25" y="16" text-anchor="middle" font-family="Arial" font-size="18" font-weight="bold">N</text><path d="M25 22 L8 88 L25 70 Z" fill="white" stroke="#111" stroke-width="2"/><path d="M25 22 L42 88 L25 70 Z" fill="#111" stroke="white" stroke-width="1"/></svg>')
  aes=[by_name[v['nome']] for v in cfg.get('camadas',[{'nome':'AE','papel':'areas_elegiveis'}]) if v['papel']=='areas_elegiveis'];assert aes,'Áreas Elegíveis ausentes';ae=aes[0];ae_extent=QgsRectangle(ae.extent())
  for v in aes[1:]:ae_extent.combineExtentWith(v.extent())
- uc=by_name.get('UC');grid=by_name.get('grade_amostral');regional=by_name.get('sat_escala_regional')
+ uc=by_name.get('UC');grid=by_name.get('grade_amostral');regional=by_name.get('sat_escala_regional');detail=by_name.get('sat_escala_local')
  assert regional is not None,'Base regional ausente'
  uc_names=[]
  if uc:
@@ -174,6 +174,13 @@ def build(config_file):
   if v:v.setLabelsEnabled(False)
  if grid:
   symbol=grid.renderer().symbol();symbol.setSize(.7);symbol.symbolLayer(0).setStrokeWidth(.12)
+ detail_info=''
+ if detail is not None:
+  source_file=root/'02_relatorio/mosaico_fontes.json'
+  sources=json.loads(source_file.read_text(encoding='utf-8')).get('fontes',[]) if source_file.exists() else []
+  credits=sorted({str(v['value']) for source in sources for v in source.get('metadados',[]) if v.get('name')=='attribution' and v.get('value')})
+  detail_info='\nDetalhe: recortes de 500 m · '+(', '.join(credits) or 'fontes em 02_relatorio')+'.'
+  assert detail.isValid(),'Base de detalhe inválida'
  scene_file=root/'02_relatorio/sentinel_fonte.json';scene_info=json.loads(scene_file.read_text(encoding='utf-8')) if scene_file.exists() else {};dates=sorted({c['data'][:10] for c in scene_info.get('cenas',[]) if c.get('data')});date_label=', '.join(dates) if len(dates)<=2 else dates[0]+' a '+dates[-1]
  specs=[('01_areas_elegiveis','Áreas Elegíveis',ae,aes+[uc]),('02_grade_amostral','Grade Amostral',grid,[grid]+aes+[uc]),('03_pa_prioritarios','Pontos amostrais prioritários',by_name.get('PA_priorit'),[by_name.get('PA_priorit'),grid]+aes+[uc]),('04_pa_alternativos','Pontos amostrais alternativos',by_name.get('PA_altern'),[by_name.get('PA_altern'),grid]+aes+[uc])]
  audits=[];dpi=int(cfg['dpi']);factor=math.sqrt(2) if cfg['papel']=='A3' else 1
@@ -184,7 +191,7 @@ def build(config_file):
   width,height=(297*factor,210*factor) if landscape else (210*factor,297*factor);page.setPageSize(QgsLayoutSize(width,height));fx=width/210;mx,my,mw,mh=13*factor,29*factor,width-26*factor,height-105*factor
   label(layout,title,13*factor,5*factor,mw,9*factor,15,True);label(layout,cfg['projeto'],13*factor,15*factor,mw,9*factor,10)
   m=QgsLayoutItemMap(layout);layout.addLayoutItem(m);m.setId(name+'_principal');m.attemptMove(QgsLayoutPoint(mx,my));m.attemptResize(QgsLayoutSize(mw,mh));m.setCrs(crs);m.setFrameEnabled(True);m.zoomToExtent(e);layout.setReferenceMap(m)
-  vectors=[v for v in vectors if v is not None];maplayers=vectors+[regional]
+  vectors=[v for v in vectors if v is not None];maplayers=vectors+([detail] if detail is not None else [])+[regional]
   m.setLayers(maplayers);m.setKeepLayerSet(True)
   label_info=choose_labels(target,m.extent(),mw,mh,project) if name.startswith(('03','04')) else {'total':0,'rotulos_exibidos':0,'rotulos_suprimidos':0}
   if grid:grid.setLabelsEnabled(False)
@@ -234,8 +241,8 @@ def build(config_file):
    if v==uc and len(uc_names)>1:QgsLegendRenderer.setNodeLegendStyle(node,QgsLegendStyle.Hidden)
   legend.setStyleFont(QgsLegendStyle.Title,QFont('Arial',8,QFont.Bold));legend.setStyleFont(QgsLegendStyle.SymbolLabel,QFont('Arial',7));layout.addLayoutItem(legend);legend.attemptMove(QgsLayoutPoint(lx+1,fy+1));legend.attemptResize(QgsLayoutSize(lw-2,fh-2));legend.setResizeToContents(False)
   note=f"{crs.authid()} · escala 1:{round(m.scale()):,}".replace(',','.')
-  info=note+'\nAEs e pontos: dados fornecidos.\n'+('UCs federais: ICMBio.\n' if uc else '')+'Estados e biomas: IBGE, 2025.\nSentinel-2 L2A · RGB nativo 10 m.\nDatas: '+(date_label or 'não informadas')+'.\nCopernicus Sentinel / AWS Earth Search.\nPA: local planejado; não é UA instalada.\nElaboração: '+cfg['elaboracao']+'\n'+datetime.date.today().isoformat()+' · Monitora QField v0.4.3\nFontes e métodos: 02_relatorio.'
-  label(layout,'Informações do mapa',ix+1,fy+1,iw-2,5,7,True);label(layout,info,ix+1.5,fy+7,iw-3,fh-8,6.5)
+  info=note+'\nAEs e pontos: dados fornecidos.\n'+('UCs federais: ICMBio.\n' if uc else '')+'Estados e biomas: IBGE, 2025.\nSentinel-2 L2A · RGB nativo 10 m.\nDatas: '+(date_label or 'não informadas')+'.\nCopernicus Sentinel / AWS Earth Search.'+detail_info+'\nPA: local planejado; não é UA instalada.\nElaboração: '+cfg['elaboracao']+'\n'+datetime.date.today().isoformat()+' · Monitora QField v0.4.4\nFontes e métodos: 02_relatorio.'
+  label(layout,'Informações do mapa',ix+1,fy+1,iw-2,5,7,True);label(layout,info,ix+1.5,fy+7,iw-3,fh-8,6 if detail is not None else 6.5)
   for j,n in enumerate(['monitora','cbc','icmbio']):
    im=QgsLayoutItemPicture(layout);im.setId(name+'_logo_'+n);layout.addLayoutItem(im);im.attemptMove(QgsLayoutPoint(gx+1.5,fy+(2+j*18)*factor));im.attemptResize(QgsLayoutSize(gw-3,15*factor));im.setPicturePath(str(assets/f'logo_{n}.png'));im.setPictureAnchor(QgsLayoutItemPicture.Middle)
   missing=target is None or target.featureCount()==0
@@ -252,6 +259,7 @@ def build(config_file):
    px=xx/width*evidence['largura_px_72dpi'];py=yy/height*evidence['altura_px_72dpi'];errors.append(math.hypot(gt[0]+px*gt[1]+py*gt[2]-gx,gt[3]+px*gt[4]+py*gt[5]-gy))
   assert max(errors)<2*max(abs(gt[1]),abs(gt[5])),errors;evidence['erros_cantos_m']=errors
   ims=QgsLayoutExporter.ImageExportSettings();ims.dpi=dpi;ims.generateWorldFile=False;ims.exportMetadata=False
+  if png.exists():png.unlink()  # Evita tentativa de atualização GDAL do PNG anterior.
   assert exporter.exportToImage(str(png),ims)==QgsLayoutExporter.Success,exporter.errorMessage()
   a,b,c,d,e,f=exporter.computeWorldFileParameters(dpi)
   png.with_suffix('.pgw').write_text('\n'.join(format(v,'.16g') for v in [a,d,b,e,c,f])+'\n')
@@ -264,7 +272,7 @@ def build(config_file):
   (png.with_suffix('.prj')).write_text(crs.toWkt(),encoding='utf-8')
   gt_png=[c-a/2-b/2,a,b,f-d/2-e/2,d,e];Path(str(png)+'.aux.xml').write_text('<PAMDataset><SRS>'+escape(crs.toWkt())+'</SRS><GeoTransform>'+','.join(format(v,'.16g') for v in gt_png)+'</GeoTransform></PAMDataset>',encoding='utf-8')
   ds=gdal.Open(str(png));assert ds.GetProjection() and ds.GetGeoTransform();ds=None
-  audits.append({'mapa':name,'tema':title,'sem_feicoes':missing,'escala':m.scale(),'extent':[m.extent().xMinimum(),m.extent().yMinimum(),m.extent().xMaximum(),m.extent().yMaximum()],'mapa_principal_uuid':m.uuid(),'rotulos':label_info,'pdf':evidence,'camadas':[v.name() for v in maplayers],'legenda':legend_names,'ucs':uc_names,'localizadores':(['estados_biomas','uc'] if uc else ['estados_biomas']),'contexto_uf':states.customProperty('monitora_uf_contexto'),'biomas_localizador':biome_audit,'biomas_legenda':names_biomes,'bioma_min_mm2':float(cfg.get('bioma_min_mm2',.5))})
+  audits.append({'mapa':name,'tema':title,'sem_feicoes':missing,'escala':m.scale(),'extent':[m.extent().xMinimum(),m.extent().yMinimum(),m.extent().xMaximum(),m.extent().yMaximum()],'mapa_principal_uuid':m.uuid(),'rotulos':label_info,'pdf':evidence,'camadas':[v.name() for v in maplayers],'detalhe_no_mapa':detail is not None,'ordem_imagens':[v.name() for v in maplayers if isinstance(v,QgsRasterLayer)],'legenda':legend_names,'ucs':uc_names,'localizadores':(['estados_biomas','uc'] if uc else ['estados_biomas']),'contexto_uf':states.customProperty('monitora_uf_contexto'),'biomas_localizador':biome_audit,'biomas_legenda':names_biomes,'bioma_min_mm2':float(cfg.get('bioma_min_mm2',.5))})
  # Exibição inicial de edição inclui todas as referências e fundos offline.
  for node in project.layerTreeRoot().findLayers():node.setItemVisibilityChecked(node.layer().name()!='Google Satellite' and not node.layer().customProperty('monitora_contexto',False))
  project.viewSettings().setDefaultViewExtent(QgsReferencedRectangle(extent_of(None,ae_extent),crs))
