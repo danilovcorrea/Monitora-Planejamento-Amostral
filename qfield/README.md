@@ -1,8 +1,8 @@
 # Monitora — criação independente de projetos QField
 
-Script `monitora_criar_qfield.R`, versão 0.4.6. Execute em R/RStudio; não é necessário carregar o script biológico do Monitora. QGIS/PyQGIS é necessário para gerar o projeto de edição, os quatro layouts e mapas PDF/PNG (habilitados por padrão). Consulte `HOMOLOGACAO.md` para o alcance e as limitações da validação.
+Script `monitora_criar_qfield.R`, versão 0.4.7. Execute em R/RStudio; não é necessário carregar o script biológico do Monitora. QGIS/PyQGIS é necessário para gerar o projeto de edição, os quatro layouts e mapas PDF/PNG (habilitados por padrão). Consulte `HOMOLOGACAO.md` para o alcance e as limitações da validação.
 
-Consulte o manual pronto: [HTML](manual/manual_qfield_v0.4.6.html) · [PDF](manual/manual_qfield_v0.4.6.pdf). Ambos são arquivos versionados para disponibilização junto ao script no GitHub, sem executar R para gerar o manual.
+Consulte o manual pronto: [HTML](manual/manual_qfield_v0.4.7.html) · [PDF](manual/manual_qfield_v0.4.7.pdf). Ambos são arquivos versionados para disponibilização junto ao script no GitHub, sem executar R para gerar o manual.
 
 ## Início
 
@@ -116,7 +116,7 @@ No diretório raiz do repositório: `Rscript --vanilla qfield/tests/test_core.R`
 
 Os dois arquivos prontos em `manual/` devem acompanhar a publicação do script e os assets da release. O GitHub exibe HTML como código na página do arquivo; o usuário pode baixar e abrir o HTML autossuficiente. Para um link HTML navegável, publicar essa pasta no GitHub Pages e atualizar o link do README junto à release. Essa ativação ainda não foi feita; os links atuais apontam aos arquivos entregues. O PDF já pode ser visualizado diretamente pelo GitHub após a publicação.
 
-## Cotas cumulativas (v0.4.6)
+## Cotas cumulativas (v0.4.7)
 
 Vegetação habilitada por padrão. Campestre-Savânico aceita campos e savanas; Ilha inclui automaticamente floresta (inclusive 100% florestal). `incluir_antropizadas=TRUE` permite pastagem (MapBiomas 15) e degradação declarada no vetor, sempre com ocorrências. Não se infere degradação da classe 25. Classes ambíguas ficam pendentes e seus pontos são excluídos, sem bloquear os demais. Vetores inconsistentes continuam exigindo correção.
 
@@ -124,7 +124,7 @@ Vegetação habilitada por padrão. Campestre-Savânico aceita campos e savanas;
 
 `cotas_formacao` recebe classe + n OU percentual. `cotas_atributos` recebe uma lista nomeada por campo. Consulte `selecao_quantidades.csv`, `cotas_realizadas.csv`, `ocorrencias_vegetacao.csv` e o relatório HTML. Quantidades realizadas não equivalem à instalação de UAs nem à conformidade do protocolo. Montagem preserva pontos fornecidos; expansão não migra silenciosamente contratos históricos.
 
-## Revisão após teste no celular (v0.4.6)
+## Revisão após teste no celular (v0.4.7)
 
 - `codigo_pa`: PA com ao menos cinco algarismos; `id_malha` calculado antes do recorte; originais e correspondência preservados ao migrar.
 - Um MBTiles de detalhe, `sat_escala_local`, com alpha e prioridade das fontes; `sat_escala_regional` é o Sentinel offline.
@@ -135,9 +135,9 @@ Vegetação habilitada por padrão. Campestre-Savânico aceita campos e savanas;
 
 Abra `ABRA_AQUI.html` na entrega. Edite no produto QGIS; não há sincronização automática dessas edições com o ZIP de campo ou exportações anteriores.
 
-Na revisão cartográfica v0.4.6, o QGIS e as legendas usam nomes completos. UCs são identificadas pelos atributos oficiais ICMBio; o localizador de UC só aparece com interseção federal. Estados e biomas usam IBGE 2025, com cache persistente (~27 MiB na primeira obtenção), e são entregues em `05_qgis/contexto`. A localização de estados considera geometria original; a simplificação serve somente ao desenho regional.
+Na revisão cartográfica v0.4.7, o QGIS e as legendas usam nomes completos. UCs são identificadas pelos atributos oficiais ICMBio; o localizador de UC só aparece com interseção federal. Estados e biomas usam IBGE 2025, com cache persistente (~27 MiB na primeira obtenção), e são entregues em `05_qgis/contexto`. A localização de estados considera geometria original; a simplificação serve somente ao desenho regional.
 
-## Restrições viárias e protocolo (v0.4.6)
+## Restrições viárias e protocolo (v0.4.7)
 
 Use arquivos/camadas `estradas_pavimentadas`, `estradas_terra` e `trilhas_preexistentes`. Flags `usar_*`: NULL detecta, TRUE exige, FALSE somente exibe. No perfil campestre, candidatos precisam admitir um segmento N/L/S/O a pelo menos 100/50/5 m das fontes habilitadas. A grade e o denominador percentual são preservados; as cotas usam apenas candidatos disponíveis. Linhas usam eixo + metade de `largura_m` quando informada; polígonos usam a borda. Nomes antigos exigem mapeamento explícito.
 
@@ -151,7 +151,7 @@ Legendas dos localizadores acompanham os biomas efetivamente representados; frag
 
 Exemplo sem regras viárias: `parametros_protocolo=list(transecto_m=50,grade_m=c(100,100),direcoes=character(),distancias_viarias_m=numeric())`. Não equivale a cumprir o procedimento campestre. A grade/IDs e as restrições viárias explicitamente ativadas permanecem preservados.
 
-## Piloto Ilha — Noronha (v0.4.6)
+## Piloto Ilha — Noronha (v0.4.7)
 
 O padrão dimensional Ilha foi baseado no pré-projeto Noronha de setembro/2026. Quantidades (60/120), alocação por AE, prioridades, sequência de consulta e quatro pontos complementares são específicos do piloto: use montar para preservá-los. Não se reproduzem apenas com uma semente ou percentuais globais. Categorias restaurada/degradada são condições de manejo; não equivalem automaticamente a formações vegetacionais.
 

@@ -35,6 +35,32 @@ def label(layout,text,x,y,w,h,size=9,bold=False,color='#174b3b'):
 def box(layout,x,y,w,h):
  item=QgsLayoutItemShape(layout);item.setShapeType(QgsLayoutItemShape.Rectangle);item.setSymbol(QgsFillSymbol.createSimple({'color':'248,250,248,255','outline_color':'120,140,130,255','outline_width':'0.15'}));layout.addLayoutItem(item);item.attemptMove(QgsLayoutPoint(x,y));item.attemptResize(QgsLayoutSize(w,h));return item
 
+def footer_slots(width,factor,has_uc):
+ # A referência é SEMPRE a composição com dois localizadores da mesma página.
+ margin=8*factor;gap=2*factor;unit=(width-2*margin-4*gap)/192
+ widths=[v*unit for v in [42,32,45,55,18]]
+ if has_uc:
+  widths[2]-=factor;widths[3]-=2*factor;widths[4]+=3*factor
+ else:
+  free=widths.pop(1)+gap-6*factor
+  widths[1]+=.4*free;widths[2]+=.6*free;widths[3]+=6*factor
+ slots=[];x=margin
+ for w in widths:slots.append((x,w));x+=w+gap
+ assert abs(x-gap-(width-margin))<1e-6
+ return slots
+
+def wrap_mm(text,font,width):
+ # Medida tipográfica real evita cortar nomes longos com a fonte ampliada.
+ lines=[]
+ for paragraph in text.split('\n'):
+  line=''
+  for word in paragraph.split():
+   candidate=(line+' '+word).strip()
+   if line and QgsLayoutUtils.textWidthMM(font,candidate)>width:lines.append(line);line=word
+   else:line=candidate
+  lines.append(line)
+ return '\n'.join(lines)
+
 def extent_of(layer, fallback):
  if layer and layer.featureCount()>0:
   e=QgsRectangle(layer.extent())
@@ -83,7 +109,7 @@ def locator_layers(project,out,aes,crs):
   color=palette.get(normalize_name(name),'#ECE8DC');cats.append(QgsRendererCategory(name,QgsFillSymbol.createSimple({'color':color,'outline_color':'#8A806D','outline_width':'0.12'}),name))
  biomes.setRenderer(QgsCategorizedSymbolRenderer('nome',cats))
  states.setRenderer(QgsSingleSymbolRenderer(QgsFillSymbol.createSimple({'color':'255,255,255,0','outline_color':'#455a64','outline_width':'0.15'})))
- labels=QgsPalLayerSettings();labels.fieldName='nome';fmt=QgsTextFormat();fmt.setFont(QFont('Arial',6));fmt.setSize(6);fmt.setColor(QColor('#455a64'));buf=QgsTextBufferSettings();buf.setEnabled(True);buf.setColor(QColor('white'));buf.setSize(.35);fmt.setBuffer(buf);labels.setFormat(fmt);states.setLabeling(QgsVectorLayerSimpleLabeling(labels));states.setLabelsEnabled(True)
+ labels=QgsPalLayerSettings();labels.fieldName='nome';fmt=QgsTextFormat();fmt.setFont(QFont('Arial',7));fmt.setSize(7);fmt.setColor(QColor('#455a64'));buf=QgsTextBufferSettings();buf.setEnabled(True);buf.setColor(QColor('white'));buf.setSize(.35);fmt.setBuffer(buf);labels.setFormat(fmt);states.setLabeling(QgsVectorLayerSimpleLabeling(labels));states.setLabelsEnabled(True)
  geom=QgsGeometry.unaryUnion([f.geometry() for a in aes for f in a.getFeatures()]);geom.transform(QgsCoordinateTransform(crs,states.crs(),project))
  original=QgsVectorLayer(str(path)+'|layername=estados_identificacao','Identificação de estados','ogr');assert original.isValid()
  selected=[f for f in original.getFeatures() if f.geometry().intersects(geom)]
@@ -192,7 +218,7 @@ def build(config_file):
   print(f'Cartografia {idx+1}/4: {title}',flush=True)
   layout=QgsPrintLayout(project);layout.initializeDefaults();layout.setName(name);page=layout.pageCollection().page(0);page.setPageSize(QgsLayoutSize(210*factor,297*factor));layout.renderContext().setDpi(dpi)
   e=extent_of(None,ae_extent) if idx==0 else extent_of(target,ae_extent);landscape=e.width()>e.height()*1.15
-  width,height=(297*factor,210*factor) if landscape else (210*factor,297*factor);page.setPageSize(QgsLayoutSize(width,height));fx=width/210;mx,my,mw,mh=13*factor,29*factor,width-26*factor,height-105*factor
+  width,height=(297*factor,210*factor) if landscape else (210*factor,297*factor);page.setPageSize(QgsLayoutSize(width,height));fh=(68 if landscape else 82)*factor;fx=width/210;mx,my,mw,mh=13*factor,29*factor,width-26*factor,height-fh-49*factor
   label(layout,title,13*factor,5*factor,mw,9*factor,15,True);label(layout,cfg['projeto'],13*factor,15*factor,mw,9*factor,10)
   m=QgsLayoutItemMap(layout);layout.addLayoutItem(m);m.setId(name+'_principal');m.attemptMove(QgsLayoutPoint(mx,my));m.attemptResize(QgsLayoutSize(mw,mh));m.setCrs(crs);m.setFrameEnabled(True);m.zoomToExtent(e);layout.setReferenceMap(m)
   vectors=[v for v in vectors if v is not None];maplayers=vectors+([detail] if detail is not None else [])+[regional]
@@ -212,24 +238,23 @@ def build(config_file):
   power=10**math.floor(math.log10(interval));interval=min([v*power for v in [1,2,5,10]],key=lambda x:abs(x-interval));gr.setIntervalX(interval);gr.setIntervalY(interval);gr.setStyle(QgsLayoutItemMapGrid.FrameAnnotationsOnly);gr.setAnnotationEnabled(True);gr.setAnnotationFormat(QgsLayoutItemMapGrid.DecimalWithSuffix);gr.setAnnotationPrecision(max(2,-int(math.floor(math.log10(interval)))+1));gr.setAnnotationFont(QFont('Arial',7));gr.setFrameStyle(QgsLayoutItemMapGrid.ExteriorTicks);gr.setAnnotationDirection(QgsLayoutItemMapGrid.VerticalDescending,QgsLayoutItemMapGrid.Left);gr.setAnnotationDirection(QgsLayoutItemMapGrid.VerticalDescending,QgsLayoutItemMapGrid.Right)
   scale=QgsLayoutItemScaleBar(layout);scale.setStyle('Single Box');scale.setLinkedMap(m);scale.applyDefaultSize();scale.setUnits(Qgis.DistanceUnit.Kilometers);scale.setUnitsPerSegment(max(.1,10**math.floor(math.log10(m.extent().width()/6000))));scale.setNumberOfSegments(2);scale.setNumberOfSegmentsLeft(0);scale.setUnitLabel('km');scale.setFont(QFont('Arial',8));scale.setBackgroundEnabled(True);scale.setBackgroundColor(QColor(255,255,255,210));layout.addLayoutItem(scale);scale.attemptMove(QgsLayoutPoint(mx+2,my+mh-11))
   pic=QgsLayoutItemPicture(layout);layout.addLayoutItem(pic);pic.attemptMove(QgsLayoutPoint(mx+mw-12,my+2));pic.attemptResize(QgsLayoutSize(9,18));pic.setPicturePath(str(north));pic.setLinkedMap(m);pic.setNorthMode(QgsLayoutItemPicture.TrueNorth)
-  fy=height-64*factor;fh=56*factor
-  # Faixa inferior: dois localizadores quando existe UC; caixas adaptadas à página.
-  margin=8*factor;gap=2*factor;available=width-2*margin
-  weights=([42,32,45,55,18] if uc else [62,52,60,18]);unit=(available-gap*(len(weights)-1))/sum(weights);slots=[];xx=margin
-  for ww in weights:slots.append((xx,ww*unit));xx+=ww*unit+gap
+  fy=height-fh-8*factor
+  # Localizadores mantêm a dimensão; espaço livre amplia somente as demais caixas.
+  slots=footer_slots(width,factor,uc is not None)
   for xx,ww in slots:box(layout,xx,fy,ww,fh)
-  rx,rw=slots[0];label(layout,'Estados e biomas',rx+1,fy+1,rw-2,5,7,True)
-  context_map=QgsLayoutItemMap(layout);layout.addLayoutItem(context_map);context_map.setId(name+'_estados_biomas');context_map.attemptMove(QgsLayoutPoint(rx+2,fy+7*factor));context_map.attemptResize(QgsLayoutSize(rw-4,35*factor));context_map.setCrs(states.crs());context_map.setLayers([ae_marker,states,biomes]);context_map.setKeepLayerSet(True);context_map.zoomToExtent(state_extent);context_map.setFrameEnabled(True)
+  rx,rw=slots[0];label(layout,'Estados e biomas',rx+1,fy+1,rw-2,6,9,True)
+  context_map=QgsLayoutItemMap(layout);layout.addLayoutItem(context_map);context_map.setId(name+'_estados_biomas');context_map.attemptMove(QgsLayoutPoint(rx+2,fy+8*factor));context_map.attemptResize(QgsLayoutSize(rw-4,35*factor));context_map.setCrs(states.crs());context_map.setLayers([ae_marker,states,biomes]);context_map.setKeepLayerSet(True);context_map.zoomToExtent(state_extent);context_map.setFrameEnabled(True)
   # Destaque da extensão das AEs garante localização legível mesmo em áreas pequenas.
   overview=context_map.overview();overview.setLinkedMap(m);overview.setEnabled(True);overview.setFrameSymbol(QgsFillSymbol.createSimple({'color':'227,26,28,45','outline_color':'#e31a1c','outline_width':'0.5'}))
   local_biomes,names_biomes,biome_audit=visible_biomes(project,biomes,context_map,out,name,float(cfg.get('bioma_min_mm2',.5)));names_biomes.sort();context_map.setLayers([ae_marker,states,local_biomes])
+  biome_cols=2 if rw>=54*factor else 1
   for j,bname in enumerate(names_biomes):
-   bx=rx+2+(j%2)*(rw-4)/2;by=fy+43*factor+(j//2)*3.5*factor
-   chip=QgsLayoutItemShape(layout);chip.setShapeType(QgsLayoutItemShape.Rectangle);chip.setSymbol(QgsFillSymbol.createSimple({'color':palette.get(normalize_name(bname),'#ECE8DC'),'outline_color':'#8A806D','outline_width':'0.1'}));layout.addLayoutItem(chip);chip.attemptMove(QgsLayoutPoint(bx,by+.6));chip.attemptResize(QgsLayoutSize(2,2));label(layout,bname,bx+2.5,by,(rw-4)/2-2.5,3.5,5.7)
-  marker_label=label(layout,'Áreas Elegíveis em vermelho',rx+2,fy+38*factor,rw-4,4,5.7,color='#a40000');marker_label.setBackgroundEnabled(True);marker_label.setBackgroundColor(QColor(255,255,255,220))
+   bx=rx+2+(j%biome_cols)*(rw-4)/biome_cols;by=fy+51*factor+(j//biome_cols)*4.8*factor
+   chip=QgsLayoutItemShape(layout);chip.setShapeType(QgsLayoutItemShape.Rectangle);chip.setSymbol(QgsFillSymbol.createSimple({'color':palette.get(normalize_name(bname),'#ECE8DC'),'outline_color':'#8A806D','outline_width':'0.1'}));layout.addLayoutItem(chip);chip.attemptMove(QgsLayoutPoint(bx,by+.8));chip.attemptResize(QgsLayoutSize(2,2));label(layout,bname,bx+2.5,by,(rw-4)/biome_cols-2.5,4.5,7)
+  marker_label=label(layout,'AEs em vermelho',rx+2,fy+44*factor,rw-4,5,7,color='#a40000')
   if uc:
-   ux,uw=slots[1];label(layout,'Localização na UC',ux+1,fy+1,uw-2,5,7,True)
-   loc=QgsLayoutItemMap(layout);layout.addLayoutItem(loc);loc.setId(name+'_localizador_uc');loc.attemptMove(QgsLayoutPoint(ux+2,fy+7*factor));loc.attemptResize(QgsLayoutSize(uw-4,46*factor));loc.setCrs(crs);loc.setLayers(aes+[uc_locator,regional]);loc.setKeepLayerSet(True);local_styles={}
+   ux,uw=slots[1];label(layout,'Localização na UC',ux+1,fy+1,uw-2,6,9,True)
+   loc=QgsLayoutItemMap(layout);layout.addLayoutItem(loc);loc.setId(name+'_localizador_uc');loc.attemptMove(QgsLayoutPoint(ux+2,fy+8*factor));loc.attemptResize(QgsLayoutSize(uw-4,46*factor));loc.setCrs(crs);loc.setLayers(aes+[uc_locator,regional]);loc.setKeepLayerSet(True);local_styles={}
    for v in aes+[uc_locator,regional]:
     style=QgsMapLayerStyle();style.readFromLayer(v);local_styles[v.id()]=style.xmlData()
    loc.setLayerStyleOverrides(local_styles);loc.setKeepLayerStyles(True);loc.zoomToExtent(extent_of(uc_locator,ae_extent));loc.overview().setLinkedMap(m);loc.overview().setEnabled(True);loc.setFrameEnabled(True)
@@ -241,17 +266,20 @@ def build(config_file):
     if ae_added:continue
     ae_added=True;title_legend='Áreas Elegíveis'
    else:title_legend=v.name()
-   node=legend.model().rootGroup().addLayer(v);node.setName(textwrap.fill(title_legend,width=max(22,int((lw-9)/1.05))));legend_names.append(title_legend)
+   node=legend.model().rootGroup().addLayer(v);node.setName(wrap_mm(title_legend,QFont('Arial',9),lw-13));legend_names.append(title_legend)
    if v==uc and len(uc_names)>1:
     QgsLegendRenderer.setNodeLegendStyle(node,QgsLegendStyle.Hidden)
-    for j,uc_name in enumerate(uc_names):QgsMapLayerLegendUtils.setLegendNodeUserLabel(node,j,textwrap.fill(uc_name,width=max(18,int((lw-12)/1.6))))
+    for j,uc_name in enumerate(uc_names):QgsMapLayerLegendUtils.setLegendNodeUserLabel(node,j,wrap_mm(uc_name,QFont('Arial',9),lw-13))
     legend.model().refreshLayerLegend(node)
-  legend.setStyleFont(QgsLegendStyle.Title,QFont('Arial',8,QFont.Bold));legend.setStyleFont(QgsLegendStyle.SymbolLabel,QFont('Arial',7));layout.addLayoutItem(legend);legend.attemptMove(QgsLayoutPoint(lx+1,fy+1));legend.attemptResize(QgsLayoutSize(lw-2,fh-2));legend.setResizeToContents(False)
+  legend.setStyleFont(QgsLegendStyle.Title,QFont('Arial',10,QFont.Bold));legend.setStyleFont(QgsLegendStyle.SymbolLabel,QFont('Arial',9));legend.setStyleFont(QgsLegendStyle.Subgroup,QFont('Arial',9));layout.addLayoutItem(legend);legend.attemptMove(QgsLayoutPoint(lx+1,fy+1));legend.attemptResize(QgsLayoutSize(lw-2,fh-2));legend.setResizeToContents(False)
   note=f"{crs.authid()} · escala 1:{round(m.scale()):,}".replace(',','.')
-  info=note+'\nAEs e pontos: dados fornecidos.\n'+('UCs federais: ICMBio.\n' if uc else '')+'Estados e biomas: IBGE, 2025.\nSentinel-2 L2A · RGB nativo 10 m.\nDatas: '+(date_label or 'não informadas')+'.\nCopernicus Sentinel / AWS Earth Search.'+detail_info+'\nPA: local planejado; não é UA instalada.\nElaboração: '+cfg['elaboracao']+'\n'+datetime.date.today().isoformat()+' · Monitora QField v0.4.6\nFontes e métodos: 02_relatorio.'
-  label(layout,'Informações do mapa',ix+1,fy+1,iw-2,5,7,True);label(layout,info,ix+1.5,fy+7,iw-3,fh-8,6 if detail is not None else 6.5)
+  info=note+'\nAEs e pontos: dados fornecidos.\n'+('UCs federais: ICMBio.\n' if uc else '')+'Estados e biomas: IBGE, 2025.\nSentinel-2 L2A · RGB nativo 10 m.\nDatas: '+(date_label or 'não informadas')+'.\nCopernicus Sentinel / AWS Earth Search.'+detail_info+'\nPA: local planejado; não é UA instalada.\nElaboração: '+cfg['elaboracao']+'\n'+datetime.date.today().isoformat()+' · Monitora QField v0.4.7\nFontes e métodos: 02_relatorio.'
+  label(layout,'Informações do mapa',ix+1,fy+1,iw-2,6,9,True)
+  info=wrap_mm(info,QFont('Arial',8),iw-5)
+  info_item=label(layout,info,ix+1.5,fy+8,iw-3,fh-9,8);info_item.setId(name+'_informacoes')
+  assert QgsLayoutUtils.textHeightMM(info_item.font(),info)+2<=info_item.sizeWithUnits().height(),'Informações excedem a caixa; use A3 ou reduza a autoria declarada.'
   for j,n in enumerate(['monitora','cbc','icmbio']):
-   im=QgsLayoutItemPicture(layout);im.setId(name+'_logo_'+n);layout.addLayoutItem(im);im.attemptMove(QgsLayoutPoint(gx+1.5,fy+(2+j*18)*factor));im.attemptResize(QgsLayoutSize(gw-3,15*factor));im.setPicturePath(str(assets/f'logo_{n}.png'));im.setPictureAnchor(QgsLayoutItemPicture.Middle)
+   im=QgsLayoutItemPicture(layout);im.setId(name+'_logo_'+n);layout.addLayoutItem(im);im.attemptMove(QgsLayoutPoint(gx+1.5,fy+3*factor+j*(fh-6*factor)/3));im.attemptResize(QgsLayoutSize(gw-3,(fh-6*factor)/3-2*factor));im.setPicturePath(str(assets/f'logo_{n}.png'));im.setPictureAnchor(QgsLayoutItemPicture.Middle)
   missing=target is None or target.featureCount()==0
   if missing:label(layout,'Sem feições fornecidas para este tema; referência: Áreas Elegíveis.',mx+2,my+2,mw-4,8,9,True)
   project.layoutManager().addLayout(layout)
@@ -279,7 +307,7 @@ def build(config_file):
   (png.with_suffix('.prj')).write_text(crs.toWkt(),encoding='utf-8')
   gt_png=[c-a/2-b/2,a,b,f-d/2-e/2,d,e];Path(str(png)+'.aux.xml').write_text('<PAMDataset><SRS>'+escape(crs.toWkt())+'</SRS><GeoTransform>'+','.join(format(v,'.16g') for v in gt_png)+'</GeoTransform></PAMDataset>',encoding='utf-8')
   ds=gdal.Open(str(png));assert ds.GetProjection() and ds.GetGeoTransform();ds=None
-  audits.append({'mapa':name,'tema':title,'sem_feicoes':missing,'escala':m.scale(),'extent':[m.extent().xMinimum(),m.extent().yMinimum(),m.extent().xMaximum(),m.extent().yMaximum()],'mapa_principal_uuid':m.uuid(),'rotulos':label_info,'pdf':evidence,'camadas':[v.name() for v in maplayers],'detalhe_no_mapa':detail is not None,'ordem_imagens':[v.name() for v in maplayers if isinstance(v,QgsRasterLayer)],'legenda':legend_names,'ucs':uc_names,'localizadores':(['estados_biomas','uc'] if uc else ['estados_biomas']),'contexto_uf':states.customProperty('monitora_uf_contexto'),'biomas_localizador':biome_audit,'biomas_legenda':names_biomes,'bioma_min_mm2':float(cfg.get('bioma_min_mm2',.5))})
+  audits.append({'mapa':name,'tema':title,'sem_feicoes':missing,'escala':m.scale(),'extent':[m.extent().xMinimum(),m.extent().yMinimum(),m.extent().xMaximum(),m.extent().yMaximum()],'mapa_principal_uuid':m.uuid(),'rotulos':label_info,'pdf':evidence,'camadas':[v.name() for v in maplayers],'detalhe_no_mapa':detail is not None,'ordem_imagens':[v.name() for v in maplayers if isinstance(v,QgsRasterLayer)],'legenda':legend_names,'ucs':uc_names,'localizadores':(['estados_biomas','uc'] if uc else ['estados_biomas']),'contexto_uf':states.customProperty('monitora_uf_contexto'),'biomas_localizador':biome_audit,'biomas_legenda':names_biomes,'bioma_min_mm2':float(cfg.get('bioma_min_mm2',.5)),'rodape':{'caixas_mm':slots,'altura_mm':fh,'localizador_mm':[rw-4,35*factor],'legenda_pt':9,'informacoes_pt':8}})
  # Exibição inicial de edição inclui todas as referências e fundos offline.
  for node in project.layerTreeRoot().findLayers():node.setItemVisibilityChecked(node.layer().name()!='Google Satellite' and not node.layer().customProperty('monitora_contexto',False))
  project.viewSettings().setDefaultViewExtent(QgsReferencedRectangle(extent_of(None,ae_extent),crs))
