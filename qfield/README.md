@@ -1,15 +1,15 @@
 # Monitora — criação independente de projetos QField
 
-Script `monitora_criar_qfield.R`, versão 0.2.0. Execute em R/RStudio; não é necessário carregar o script biológico do Monitora. QGIS é usado na homologação, não como dependência de execução. Consulte `HOMOLOGACAO.md` para o alcance e as limitações da validação.
+Script `monitora_criar_qfield.R`, versão 0.3.0. Execute em R/RStudio; não é necessário carregar o script biológico do Monitora. QGIS é usado na homologação, não como dependência de execução. Consulte `HOMOLOGACAO.md` para o alcance e as limitações da validação.
 
-Consulte o manual pronto: [HTML](manual/manual_qfield_v0.2.0.html) · [PDF](manual/manual_qfield_v0.2.0.pdf). Ambos são arquivos versionados para disponibilização junto ao script no GitHub, sem executar R para gerar o manual.
+Consulte o manual pronto: [HTML](manual/manual_qfield_v0.3.0.html) · [PDF](manual/manual_qfield_v0.3.0.pdf). Ambos são arquivos versionados para disponibilização junto ao script no GitHub, sem executar R para gerar o manual.
 
 ## Início
 
 1. Crie duas pastas distintas: `qfield_input` e `qfield_output`.
 2. Coloque na entrada pelo menos uma camada de polígonos identificada como `areas_elegiveis`.
 3. Edite o bloco `MQ_CONFIG`, perto do início do script, com os caminhos absolutos. No Windows, prefira `/` nos caminhos.
-4. Instale, caso faltem: `sf`, `terra`, `xml2`, `zip`, `jsonlite`, `digest`, `httr`, `data.table`, `DBI`, `RSQLite`, `cli`, `curl`, `png`, `jpeg`.
+4. Instale, caso faltem: `sf`, `terra`, `xml2`, `zip`, `jsonlite`, `digest`, `httr`, `data.table`, `DBI`, `RSQLite`, `cli`, `curl`, `png`, `jpeg`, `lpSolve`.
 5. Abra o script no RStudio e use **Source**. A conexão à internet é necessária para a consulta oficial às UCs federais. O MapBiomas também usa internet quando ativado.
 6. Consulte o relatório. Importe `01_qfield/pacote_qfield.zip` em uma pasta nova do QField e confira em modo avião.
 
@@ -115,3 +115,9 @@ No diretório raiz do repositório: `Rscript --vanilla qfield/tests/test_core.R`
 ## Publicação dos manuais
 
 Os dois arquivos prontos em `manual/` devem acompanhar a publicação do script e os assets da release. O GitHub exibe HTML como código na página do arquivo; o usuário pode baixar e abrir o HTML autossuficiente. Para um link HTML navegável, publicar essa pasta no GitHub Pages e atualizar o link do README junto à release. Essa ativação ainda não foi feita; os links atuais apontam aos arquivos entregues. O PDF já pode ser visualizado diretamente pelo GitHub após a publicação.
+
+## Cotas cumulativas (v0.3.0)
+
+Vegetação habilitada por padrão; florestal e atributos adicionais desabilitados. Informe `formacao_campo`/`formacao_mapa` para classificação local ou use MapBiomas conservador. Campos rupestres e classes ambíguas exigem validação local. `cotas_formacao` recebe classe + n OU percentual. `cotas_atributos` é uma lista nomeada por campo, com uma tabela classe + n OU percentual por atributo. As margens são atendidas simultaneamente, não substituídas nem multiplicadas como se fossem independentes.
+
+O solver escolhe arredondamentos conjuntamente, mantém capacidades e PAs preservados e bloqueia conflitos antes das imagens. Alternativos padrão: dobro por combinação. Cotas personalizadas de alternativos acompanham as margens dos prioritários; veja as diferenças no manual, seções 12–13. Na montagem, apenas audita as cotas e preserva campos fornecidos; na expansão, verifica o contrato histórico. Consulte CSVs de cotas, combinações e o JSON de solução em `02_relatorio`.

@@ -1,5 +1,5 @@
 # Monitora — criação independente de projetos QField
-# Versão 0.2.0 — candidata de homologação, 01/10/2026.
+# Versão 0.3.0 — cotas cumulativas, 01/10/2026.
 # Leitores adaptados da versão pública v3.0.6; SHA256 da fonte:
 # 454cb8f1d6f74ec8df2695236add1206080f869a3209c8a09aa92af9b6186d45
 # Arquivo autossuficiente: não carrega o script biológico do Monitora.
@@ -15,6 +15,18 @@ MQ_CONFIG <- list(
   grade_m = c(156.25, 156.25), epsg = NULL, semente = 20261001L,
   prioritarios = list(n=NULL, percentual=20),
   alternativos = list(n=NULL, percentual=NULL), # ambos NULL: 2 x prioritários
+  # Cotas são cumulativas: todas devem ser satisfeitas pelo MESMO conjunto de PAs.
+  estratificar_vegetacao = TRUE, incluir_formacao_florestal = FALSE,
+  perfil = 'campestre_savanico', # ilha ou personalizado: parâmetros explicitamente definidos
+  formacao_campo = NULL, # NULL: MapBiomas; ou nome exato do campo no vetor
+  formacao_mapa = NULL, # data.frame(classe=c('Campo','Savana'),formacao=c('campestre','savanica'))
+  fitofisionomia_campo = NULL, # quando informado, balanceia fitofisionomias; não apenas formações
+  cotas_formacao = NULL, # NULL: balanceado; ou data.frame(classe=..., percentual=...) OU n=...
+  estratificar_por_atributos = FALSE,
+  estratos_arquivo = NULL, estratos_camada = NULL, # ambos NULL: polígonos das AEs
+  # list(queima_pre=data.frame(classe=c('0','1'),percentual=c(60,40)), setor=...)
+  cotas_atributos = list(), cotas_atributos_arquivo = NULL, # CSV longo: atributo;classe;n OU percentual
+  solver_timeout_s = 60L, max_estratos = 2000L,
   mapbiomas = TRUE, mb_produto = '30m', mb_colecao = 11L, mb_ano = 2025L,
   # Detalhe pode levar dezenas de minutos e centenas de MiB. TRUE prepara; não autoriza download.
   baixar_imagem_detalhe = TRUE, confirmar_download = NULL, confirmar_sentinel = NULL, # NULL pergunta; TRUE autoriza; FALSE usa somente fontes locais
@@ -280,6 +292,7 @@ mq_deps <- function() {
   if(length(miss)) mq_stop('Instale os pacotes: ',paste(miss,collapse=', '))
 }
 mq_validate_config <- function(c) {
+  mq_design_validate(c)
   for(n in c('transecto_m','distancia_min_m','deslocamento_max_m','max_pontos','timeout_s'))
     if(length(c[[n]])!=1L || !is.numeric(c[[n]]) || !is.finite(c[[n]]) || c[[n]]<0 || (n!='deslocamento_max_m' && c[[n]]==0)) mq_stop('Parâmetro inválido: ',n)
   if(length(c$grade_m)!=2 || any(!is.finite(c$grade_m)) || any(c$grade_m<=0)) mq_stop('grade_m exige largura e altura positivas.')
@@ -482,6 +495,237 @@ mq_select <- function(g,c) {
   g
 }
 
+# Desenho cumulativo: classificação -> margens -> solução inteira -> sorteio nas células.
+mq_design_active <- function(c) isTRUE(c$estratificar_vegetacao)||isTRUE(c$estratificar_por_atributos)
+mq_design_contract <- function(c) {
+  m<-c$formacao_mapa;if(!is.null(m))m<-m[order(m$classe,method='radix'),,drop=FALSE]
+  structure<-list(vegetacao=c$estratificar_vegetacao,florestal=c$incluir_formacao_florestal,perfil=c$perfil,
+    campo_formacao=c$formacao_campo,mapa=m,fitofisionomia=c$fitofisionomia_campo,
+    atributos=if(c$estratificar_por_atributos)sort(names(c$cotas_atributos),method='radix')else character(),
+    arquivo=c$estratos_arquivo,camada=c$estratos_camada,
+    mapbiomas=if(c$estratificar_vegetacao&&is.null(c$formacao_campo))list(produto=c$mb_produto,colecao=c$mb_colecao,ano=c$mb_ano)else NULL,
+    regra_classificacao='conservadora_v1',regra_cotas='margens_inteiras_conjuntas_v1')
+  list(estrutura=structure,sha256=digest::digest(jsonlite::toJSON(structure,auto_unbox=TRUE,null='null',digits=16),algo='sha256',serialize=FALSE))
+}
+mq_design_validate <- function(c) {
+  for(n in c('estratificar_vegetacao','incluir_formacao_florestal','estratificar_por_atributos'))
+    if(length(c[[n]])!=1 || !is.logical(c[[n]]) || is.na(c[[n]]))mq_stop('Opção lógica inválida: ',n)
+  if(length(c$perfil)!=1 || !c$perfil%in%c('campestre_savanico','ilha','personalizado'))mq_stop('Perfil inválido.')
+  if(c$incluir_formacao_florestal && c$perfil=='campestre_savanico')mq_stop('Florestal exige perfil ilha ou personalizado, com parâmetros explícitos.')
+  for(n in c('solver_timeout_s','max_estratos'))if(length(c[[n]])!=1||!is.numeric(c[[n]])||!is.finite(c[[n]])||c[[n]]<1||c[[n]]!=floor(c[[n]]))mq_stop('Limite inválido: ',n)
+  for(n in c('formacao_campo','fitofisionomia_campo','estratos_arquivo','estratos_camada','cotas_atributos_arquivo'))if(!is.null(c[[n]])&&(length(c[[n]])!=1||!is.character(c[[n]])||is.na(c[[n]])||!nzchar(c[[n]])))mq_stop('Campo/caminho inválido: ',n)
+  if(xor(is.null(c$estratos_arquivo),is.null(c$estratos_camada)))mq_stop('Informe estratos_arquivo e estratos_camada juntos.')
+  if(!is.list(c$cotas_atributos)|| (length(c$cotas_atributos)&&(is.null(names(c$cotas_atributos))||any(!nzchar(names(c$cotas_atributos)))||anyDuplicated(names(c$cotas_atributos)))))mq_stop('cotas_atributos exige lista nomeada por campo, sem duplicações.')
+  if(length(c$cotas_atributos)&&!is.null(c$cotas_atributos_arquivo))mq_stop('Use cotas no bloco OU arquivo CSV, nunca ambos.')
+  if(!c$estratificar_por_atributos && (length(c$cotas_atributos)||!is.null(c$cotas_atributos_arquivo)))message('Cotas de atributos configuradas, mas desabilitadas; não serão aplicadas.')
+  if(!c$estratificar_vegetacao && (!is.null(c$cotas_formacao)||!is.null(c$fitofisionomia_campo)))mq_stop('Cotas de vegetação/fitofisionomia exigem estratificar_vegetacao=TRUE.')
+  invisible(c)
+}
+mq_design_load <- function(c,input,report) {
+  if(isTRUE(c$estratificar_por_atributos)&&!is.null(c$cotas_atributos_arquivo)) {
+    path<-monitora_qfield_caminho_local(c$cotas_atributos_arquivo,input)
+    d<-as.data.frame(data.table::fread(path,colClasses='character',encoding='UTF-8'))
+    if(!all(c('atributo','classe')%in%names(d))||!nrow(d)||anyNA(d$atributo)||any(!nzchar(d$atributo)))mq_stop('CSV de cotas exige atributo, classe e n OU percentual.')
+    measures<-intersect(c('n','percentual'),names(d));if(length(measures)!=1)mq_stop('CSV de cotas exige exatamente uma coluna n OU percentual.')
+    d[[measures]]<-suppressWarnings(as.numeric(d[[measures]]));c$cotas_atributos<-split(d[,setdiff(names(d),'atributo'),drop=FALSE],d$atributo)
+    mq_json(list(arquivo=path,sha256=mq_hash(path)),file.path(report,'fonte_cotas.json'))
+  }
+  if(c$estratificar_por_atributos&&!length(c$cotas_atributos))mq_stop('Estratificação por atributos habilitada sem cotas.')
+  c
+}
+mq_design_fields <- function(c) unique(c(if(c$estratificar_vegetacao)c(c$formacao_campo,c$fitofisionomia_campo),if(c$estratificar_por_atributos)names(c$cotas_atributos)))
+mq_design_attributes <- function(g,layers,c,report) {
+  fields<-mq_design_fields(c);if(!length(fields))return(g)
+  src<-if(is.null(c$estratos_arquivo))Filter(function(l)l$papel=='areas_elegiveis',layers)else Filter(function(l)identical(l$fonte,paste(c$estratos_arquivo,c$estratos_camada,sep=' | ')),layers)
+  if(!length(src))mq_stop('Camada de estratificação não localizada; confira arquivo e camada exatos.')
+  hits<-vector('list',nrow(g));sources<-list()
+  for(l in src) {
+    x<-l$x
+    if(any(!as.character(sf::st_geometry_type(x))%in%c('POLYGON','MULTIPOLYGON')))mq_stop('Estratificação exige polígonos.')
+    absent<-setdiff(fields,names(x));if(length(absent))mq_stop('Campos ausentes: ',paste(absent,collapse=', '),'. Disponíveis: ',paste(names(sf::st_drop_geometry(x)),collapse=', '))
+    vals<-as.data.frame(lapply(sf::st_drop_geometry(x)[,fields,drop=FALSE],as.character),stringsAsFactors=FALSE)
+    if(any(vapply(x[,fields,drop=FALSE],is.list,logical(1))[fields]))mq_stop('Campos de estrato devem ser escalares.')
+    ix<-sf::st_intersects(g,sf::st_transform(x,sf::st_crs(g)))
+    for(i in which(lengths(ix)>0))hits[[i]]<-rbind(hits[[i]],vals[ix[[i]],,drop=FALSE])
+    sources[[length(sources)+1]]<-list(fonte=l$fonte,campos=fields,sha256=digest::digest(list(sf::st_as_binary(sf::st_geometry(x)),vals),algo='sha256'))
+  }
+  bad<-character(nrow(g));out<-as.data.frame(setNames(rep(list(rep(NA_character_,nrow(g))),length(fields)),fields))
+  for(i in seq_len(nrow(g))) {
+    h<-unique(hits[[i]])
+    if(is.null(h)||!nrow(h))bad[i]<-'sem_poligono' else if(nrow(h)>1)bad[i]<-'atributos_conflitantes' else if(anyNA(h)||any(!nzchar(trimws(unlist(h)))))bad[i]<-'atributo_ausente' else out[i,]<-h[1,]
+  }
+  mq_json(sources,file.path(report,'fontes_estratos.json'))
+  inv<-do.call(rbind,lapply(fields,function(f){z<-as.data.frame(table(out[[f]],useNA='always'));data.frame(atributo=f,classe=as.character(z[[1]]),n_grade=z[[2]])}))
+  mq_csv(inv,file.path(report,'inventario_atributos.csv'))
+  if(any(nzchar(bad))) {
+    idfield<-intersect(c('PA','UA','Name','nome','id'),names(g))[1]
+    mq_csv(data.frame(linha_entrada=seq_len(nrow(g)),campo_identificador=if(is.na(idfield))'linha_entrada'else idfield,
+      identificador=if(is.na(idfield))as.character(seq_len(nrow(g)))else as.character(g[[idfield]]),motivo=bad)[nzchar(bad),],file.path(report,'conflitos_atributos.csv'))
+    mq_stop('Atribuição espacial ambígua/ausente em ',sum(nzchar(bad)),' pontos; consulte conflitos_atributos.csv. Nenhuma classe foi presumida.')
+  }
+  for(f in fields) {
+    dest<-paste0('atr_',f)
+    if(dest%in%names(g) && !identical(as.character(g[[dest]]),out[[f]]))mq_stop('Campo derivado fornecido conflita com vetor: ',dest)
+    g[[dest]]<-out[[f]]
+  }
+  g
+}
+mq_design_classify <- function(g,layers,c,report) {
+  original<-sf::st_drop_geometry(g)
+  preserve<-function(x) {
+    for(f in intersect(c('mq_formacao','mq_formacao_fonte','mq_apto','mq_fitofisionomia'),names(original)))
+      if(f%in%names(x)&&!identical(as.character(original[[f]]),as.character(x[[f]])))mq_stop('Classificação fornecida diverge da atual: ',f,'. Histórico preservado; revisar explicitamente.')
+    x
+  }
+  g<-mq_design_attributes(g,layers,c,report)
+  if(!c$estratificar_vegetacao){g$mq_apto<-TRUE;return(preserve(g))}
+  if(!is.null(c$formacao_campo)) {
+    raw<-g[[paste0('atr_',c$formacao_campo)]];f<-raw
+    if(!is.null(c$formacao_mapa)) {
+      m<-c$formacao_mapa
+      if(!is.data.frame(m)||!all(c('classe','formacao')%in%names(m))||anyNA(m)||anyDuplicated(m$classe))mq_stop('formacao_mapa exige classe única e formacao, sem ausentes.')
+      f<-as.character(m$formacao[match(raw,as.character(m$classe))])
+    }
+    g$mq_formacao_fonte<-paste0('vetor:',c$formacao_campo)
+  } else {
+    if(!c$mapbiomas)mq_stop('Vegetação exige formacao_campo ou MapBiomas habilitado.')
+    if(!'mb_codigo'%in%names(g))g<-mq_mb(g,c,report)
+    k<-g$mb_codigo;f<-rep(NA_character_,nrow(g))
+    f[k%in%12]<-'campestre';f[k%in%c(4,7)]<-'savanica';f[k%in%c(3,5,6,49)]<-'florestal'
+    excluded<-c(15,39,20,40,62,41,46,47,35,48,9,21,23,24,30,75,91,25,33,31)
+    f[k%in%excluded]<-'fora_alvo';g$mq_formacao_fonte<-paste0('MapBiomas_',c$mb_produto,'_C',c$mb_colecao,'_',c$mb_ano)
+    # 11, 29, 32, 50, 77, 84: composição/estrutura heterogênea; não inferir formação.
+  }
+  bad<-is.na(f)|!f%in%c('campestre','savanica','florestal','fora_alvo')
+  if(any(bad)) {
+    mq_csv(sf::st_drop_geometry(g[bad,]),file.path(report,'vegetacao_pendente.csv'))
+    mq_stop('Formação não resolvida em ',sum(bad),' pontos. Forneça polígonos com formacao_campo e mapeamento explícito; campos rupestres não equivalem a toda classe 29. Veja vegetacao_pendente.csv.')
+  }
+  g$mq_formacao<-f;g$mq_apto<-f%in%c('campestre','savanica',if(c$incluir_formacao_florestal)'florestal')
+  if(!is.null(c$fitofisionomia_campo))g$mq_fitofisionomia<-g[[paste0('atr_',c$fitofisionomia_campo)]]
+  mq_csv(as.data.frame(table(formacao=f,apto=g$mq_apto)),file.path(report,'classificacao_vegetacao.csv'))
+  preserve(g)
+}
+mq_quota <- function(q,classes,N,label) {
+  if(!is.data.frame(q)||!all('classe'%in%names(q))||!nrow(q))mq_stop('Cota inválida: ',label)
+  measure<-intersect(c('n','percentual'),names(q));if(length(measure)!=1)mq_stop('Use n OU percentual para ',label)
+  q$classe<-as.character(q$classe);v<-q[[measure]]
+  if(anyNA(q$classe)||any(!nzchar(trimws(q$classe)))||anyDuplicated(q$classe)||!is.numeric(v)||any(!is.finite(v))||any(v<0))mq_stop('Classes/valores inválidos: ',label)
+  if(length(setdiff(classes,q$classe)))mq_stop('Classes não contempladas em ',label,': ',paste(setdiff(classes,q$classe),collapse=', '),'. Declare cota zero se a exclusão for intencional.')
+  if(measure=='n') {
+    if(any(v!=floor(v))||sum(v)!=N)mq_stop('Cotas n de ',label,' devem ser inteiras e somar ',N)
+    target<-v
+  } else {
+    if(any(v>100)||abs(sum(v)-100)>1e-7)mq_stop('Percentuais de ',label,' devem somar 100.')
+    target<-N*v/100
+  }
+  q$alvo<-target;q$medida<-measure;q$valor<-v
+  q[order(q$classe,method='radix'),c('classe','alvo','medida','valor')]
+}
+mq_design_criteria <- function(g,c,N) {
+  ans<-list();a<-g[g$mq_apto,]
+  if(c$estratificar_vegetacao) {
+    forms<-sort(unique(a$mq_formacao),method='radix');q<-c$cotas_formacao
+    if(!length(forms)&&N>0)mq_stop('Nenhum ponto classificado nas formações habilitadas.')
+    if(is.null(q)) {
+      if(c$incluir_formacao_florestal&&'florestal'%in%forms)mq_stop('Alvo florestal exige cotas_formacao explícitas; não se presume divisão em terços.')
+      if(!is.null(c$fitofisionomia_campo)) {
+        pairs<-unique(sf::st_drop_geometry(a)[,c('mq_formacao','mq_fitofisionomia')]);if(anyDuplicated(pairs$mq_fitofisionomia))mq_stop('Uma fitofisionomia está associada a mais de uma formação.')
+        w<-table(factor(pairs$mq_formacao,levels=forms));q<-data.frame(classe=forms,percentual=100*as.numeric(w)/sum(w))
+      } else if(length(forms))q<-data.frame(classe=forms,percentual=rep(100/length(forms),length(forms)))
+    }
+    if(!is.null(q))ans$mq_formacao<-mq_quota(q,forms,N,'formação')
+    if(!is.null(c$fitofisionomia_campo)) {
+      phy<-sort(unique(a$mq_fitofisionomia),method='radix')
+      if(length(phy))ans$mq_fitofisionomia<-mq_quota(data.frame(classe=phy,percentual=rep(100/length(phy),length(phy))),phy,N,'fitofisionomia')
+    }
+  }
+  if(c$estratificar_por_atributos)for(f in sort(names(c$cotas_atributos),method='radix'))ans[[paste0('atr_',f)]]<-mq_quota(c$cotas_atributos[[f]],sort(unique(a[[paste0('atr_',f)]])),N,f)
+  ans
+}
+mq_design_select <- function(g,c,report,old=NULL) {
+  if(!requireNamespace('lpSolve',quietly=TRUE))mq_stop('Instale o pacote lpSolve para resolver cotas cumulativas.')
+  N<-nrow(g);np<-mq_quantity(c$prioritarios,N,ceiling(.2*N));na<-mq_quantity(c$alternativos,N,2L*np)
+  doubled<-is.null(c$alternativos$n)&&is.null(c$alternativos$percentual)
+  if(np==0&&na>0)mq_stop('No desenho estratificado, alternativos positivos exigem prioritários positivos.')
+  criteria<-mq_design_criteria(g,c,np);fields<-names(criteria)
+  if(!length(fields))mq_stop('Nenhum critério de estratificação disponível.')
+  tuples<-do.call(paste,c(lapply(sf::st_drop_geometry(g)[,fields,drop=FALSE],function(v){v<-as.character(v);paste0(nchar(v,type='bytes'),':',v)}),sep='|'))
+  keys<-vapply(tuples,digest::digest,character(1),algo='sha256',serialize=FALSE)
+  g$mq_estrato<-keys;g$mq_estrato[!g$mq_apto]<-'fora_alvo'
+  if(!is.null(old)) {
+    ix<-match(g$chave_grade,old$chave_grade);sel<-which(!is.na(ix)&g$categoria!='grade')
+    if(length(sel)&&(!'mq_estrato'%in%names(old)||anyNA(old$mq_estrato[ix[sel]])||any(old$mq_estrato[ix[sel]]!=g$mq_estrato[sel])))mq_stop('Expansão mudaria estrato de PA preservado ou não há classificação histórica; revisão explícita necessária.')
+  }
+  if(any(g$categoria!='grade'&!g$mq_apto))mq_stop('PA preservado está fora das formações habilitadas.')
+  cells<-sort(unique(keys[g$mq_apto]),method='radix');H<-length(cells)
+  if(!H||H>c$max_estratos)mq_stop('Quantidade de combinações vazia ou acima de max_estratos: ',H)
+  cell<-match(keys,cells);cap<-tabulate(cell[g$mq_apto],H)
+  op<-tabulate(cell[g$categoria=='prioritario'],H);oa<-tabulate(cell[g$categoria=='alternativo'],H)
+  combos<-sf::st_drop_geometry(g[match(cells,keys),fields,drop=FALSE]);combos$estrato<-cells;combos$disponiveis<-cap;combos$preservados_p<-op;combos$preservados_a<-oa
+  mq_csv(combos,file.path(report,'combinacoes_disponiveis.csv'))
+  bands<-list()
+  for(f in fields)for(j in seq_len(nrow(criteria[[f]]))) {
+    q<-criteria[[f]][j,];ix<-which(combos[[f]]==q$classe)
+    bands[[length(bands)+1]]<-list(campo=f,classe=q$classe,grupo='prioritario',ix=ix,alvo=q$alvo,medida=q$medida,valor=q$valor)
+    if(!doubled)bands[[length(bands)+1]]<-list(campo=f,classe=q$classe,grupo='alternativo',ix=H+ix,alvo=if(np)na*q$alvo/np else 0,medida='proporcao_dos_prioritarios',valor=if(np)100*q$alvo/np else 0)
+  }
+  B<-length(bands);V<-6*H+2*B;rows<-list();dirs<-character();rhs<-numeric()
+  add<-function(ix,val,dir,b) {r<-length(rhs)+1L;rows[[r]]<<-if(length(ix))cbind(r,ix,val)else matrix(numeric(),0,3);dirs[r]<<-dir;rhs[r]<<-b}
+  add(seq_len(H),rep(1,H),'=',np);add(H+seq_len(H),rep(1,H),'=',na)
+  for(h in seq_len(H)) {
+    add(c(h,H+h),c(1,1),'<=',cap[h]);add(h,1,'>=',op[h]);add(H+h,1,'>=',oa[h])
+    if(doubled)add(c(h,H+h),c(-2,1),'=',0)
+    for(k in 0:1) {
+      dv<-2*H+2*B+2*(k*H+h)-1:0
+      add(c(k*H+h,dv),c(1,-1,1),'=',c(np,na)[k+1]*cap[h]/sum(cap))
+    }
+  }
+  for(j in seq_along(bands)) {
+    b<-bands[[j]];lo<-floor(b$alvo+1e-8);hi<-ceiling(b$alvo-1e-8)
+    add(b$ix,rep(1,length(b$ix)),'>=',lo);add(b$ix,rep(1,length(b$ix)),'<=',hi)
+    add(c(b$ix,2*H+2*j-1:0),c(rep(1,length(b$ix)),-1,1),'=',b$alvo)
+  }
+  marginal<-do.call(rbind,lapply(bands,function(b)data.frame(atributo=b$campo,classe=b$classe,grupo=b$grupo,medida=b$medida,valor=b$valor,alvo_real=b$alvo,minimo=floor(b$alvo+1e-8),maximo=ceiling(b$alvo-1e-8),disponiveis=sum(cap[if(b$grupo=='prioritario')b$ix else b$ix-H]))))
+  marginal$minimo_com_reservas<-if(doubled)3*marginal$minimo else marginal$minimo
+  marginal$deficit_minimo<-pmax(0,marginal$minimo_com_reservas-marginal$disponiveis)
+  mq_csv(marginal,file.path(report,'cotas_solicitadas.csv'))
+  solve<-function(obj)lpSolve::lp('min',obj,const.dir=dirs,const.rhs=rhs,dense.const=do.call(rbind,rows),int.vec=seq_len(2*H),timeout=as.integer(c$solver_timeout_s),scale=0)
+  margvars<-2*H+seq_len(2*B);obj<-numeric(V);obj[margvars]<-1
+  progress<-mq_progress('Compatibilizar todas as cotas',2);on.exit(mq_progress_done(progress),add=TRUE)
+  s<-solve(obj);mq_progress_update(progress,1,'Margens inteiras')
+  fail<-function(status){mq_json(list(status_solver=status,interpretacao=if(status==2)'inviabilidade_comprovada'else 'sem_solucao_otima_comprovada',denominador=N,prioritarios=np,alternativos=na),file.path(report,'solucao_cotas.json'));def<-marginal[marginal$deficit_minimo>0,];detail<-if(nrow(def))paste(sprintf('%s=%s: mínimo com reservas %d, disponíveis %d',def$atributo,def$classe,def$minimo_com_reservas,def$disponiveis),collapse='; ')else 'Verificar combinações simultâneas, preservados e limites inteiros; margens isoladas não comprovam viabilidade.';writeLines(detail,file.path(report,'diagnostico_cotas.txt'));mq_stop(if(status==2)'Cotas cumulativas inviáveis com capacidades/histórico e arredondamento inteiro permitido. 'else 'Solver interrompido/sem ótimo comprovado; não interpretar como inviabilidade. ',detail,' Consulte cotas_solicitadas.csv e combinacoes_disponiveis.csv; nenhuma cota foi relaxada.')}
+  if(s$status!=0)fail(s$status)
+  add(margvars,rep(1,length(margvars)),'<=',s$objval+1e-7)
+  obj[]<-0;obj[(2*H+2*B+1):V]<-1
+  s<-solve(obj);mq_progress_update(progress,2,'Combinações compatíveis');if(s$status!=0)fail(s$status)
+  counts<-round(s$solution[seq_len(2*H)]);p<-counts[seq_len(H)];a<-counts[H+seq_len(H)]
+  valid<-all(abs(counts-s$solution[seq_len(2*H)])<1e-5)&&sum(p)==np&&sum(a)==na&&all(p>=op)&all(a>=oa)&all(p+a<=cap)&all(counts>=0)
+  if(doubled)valid<-valid&&all(a==2*p)
+  actual<-vapply(bands,function(b)sum(counts[b$ix]),numeric(1));valid<-valid&&all(actual>=marginal$minimo&actual<=marginal$maximo)
+  if(!valid)mq_stop('Solução inteira falhou na verificação independente; nenhum pacote será promovido.')
+  marginal$realizado<-actual;marginal$desvio<-actual-marginal$alvo_real
+  if(doubled){ar<-marginal;ar$grupo<-'alternativo';for(f in c('alvo_real','minimo','maximo','realizado','desvio'))ar[[f]]<-2*ar[[f]];ar$medida<-'dobro_dos_prioritarios';marginal<-rbind(marginal,ar)}
+  mq_csv(marginal,file.path(report,'cotas_realizadas.csv'))
+  combos$prioritarios<-p;combos$alternativos<-a;mq_csv(combos,file.path(report,'alocacao_combinacoes.csv'))
+  rank<-vapply(g$chave_grade,function(k)digest::digest(paste(c$semente,k,sep=':'),algo='sha256',serialize=FALSE),character(1))
+  for(h in seq_len(H)) {
+    avail<-which(g$mq_apto&!is.na(cell)&cell==h&g$categoria=='grade');avail<-avail[order(rank[avail],g$id_grade[avail])]
+    pp<-head(avail,p[h]-op[h]);if(length(pp))g$categoria[pp]<-'prioritario'
+    aa<-head(setdiff(avail,pp),a[h]-oa[h]);if(length(aa))g$categoria[aa]<-'alternativo'
+  }
+  if(c$estratificar_vegetacao&&c$perfil=='campestre_savanico') {
+    field<-if('mq_fitofisionomia'%in%names(g))'mq_fitofisionomia'else 'mq_formacao'
+    effort<-data.frame(estrato=sort(unique(g[[field]][g$mq_apto]),method='radix'),stringsAsFactors=FALSE)
+    effort$PA_prioritarios<-vapply(effort$estrato,function(v)sum(g$categoria=='prioritario'&g[[field]]==v),integer(1))
+    effort$observacao<-'PA candidato não comprova UA instalada; referência do protocolo: 12 UAs por fitofisionomia, ao menos duas fitofisionomias.'
+    mq_csv(effort,file.path(report,'esforco_planejado.csv'))
+    if(any(effort$PA_prioritarios<12)||nrow(effort)<2)message('ATENÇÃO: esforço/estratos de PAs não comprova consolidação do protocolo (12 UAs por fitofisionomia, ao menos duas). Veja esforco_planejado.csv.')
+  }
+  mq_json(list(status='verificado',solver='lpSolve',versao_solver=as.character(utils::packageVersion('lpSolve')),denominador_grade_AE=N,candidatos_habilitados=sum(cap),prioritarios=np,alternativos=na,alternativos_regra=if(doubled)'dobro_por_combinacao'else 'margens_proporcionais; combinacoes_resolvidas_conjuntamente',arredondamento='piso/teto de cada margem, escolha conjunta minimiza desvio total; não há arredondamento isolado',objetivo_secundario='menor desvio absoluto da composição disponível nas combinações; não pressupõe independência',campos=fields,semente=c$semente,limite_inferencia='áreas elegíveis e desenho executado; cotas não garantem inclusão positiva nem representatividade de toda UC'),file.path(report,'solucao_cotas.json'))
+  g
+}
+
 mq_coordinates <- function(x) {
   if(!nrow(x)) return(x)
   typ<-unique(as.character(sf::st_geometry_type(x)))
@@ -572,6 +816,7 @@ mq_diagnostics <- function(points,camadas,ae,c,report) {
         # Estritamente inferior: o limiar exato é aceito.
         nearby<-sf::st_is_within_distance(geom,target,dist=known[[role]])
         d[[nm]]<-vapply(seq_along(nearby),function(i)length(nearby[[i]])>0 && any(as.numeric(sf::st_distance(geom[i],target[nearby[[i]]])) < known[[role]]-1e-7),logical(1))
+        if(role=='formacao_florestal' && isTRUE(c$incluir_formacao_florestal) && 'mq_formacao'%in%names(points))d[[nm]][points$mq_formacao=='florestal']<-FALSE
       }
     }
     d$status<-'simulacao; confirmar obstaculos, formacao, relevo e distancias em campo'
@@ -582,7 +827,11 @@ mq_diagnostics <- function(points,camadas,ae,c,report) {
   pri<-points[points$categoria=='prioritario',];alt<-points[points$categoria=='alternativo',]
   if(nrow(pri)&&nrow(alt)) {
     alt<-alt[order(alt$PA),];i<-sf::st_nearest_feature(pri,alt)
-    mq_csv(data.frame(PA=pri$PA,alternativo=alt$PA[i],distancia_m=as.numeric(sf::st_distance(pri,alt[i,],by_element=TRUE)),criterio='menor distância plana PA a PA; não comprova instalação'),file.path(report,'alternativos_proximos.csv'))
+    mq_csv(data.frame(PA=pri$PA,alternativo=alt$PA[i],distancia_m=as.numeric(sf::st_distance(pri,alt[i,],by_element=TRUE)),criterio='roteiro: menor distância plana PA a PA; não comprova instalação'),file.path(report,'alternativos_proximos.csv'))
+    if('mq_estrato'%in%names(pri)) {
+      same<-lapply(seq_len(nrow(pri)),function(j){pool<-alt[alt$mq_estrato==pri$mq_estrato[j],];if(!nrow(pool))return(data.frame(PA=pri$PA[j],alternativo=NA_character_,distancia_m=NA_real_));k<-sf::st_nearest_feature(pri[j,],pool);data.frame(PA=pri$PA[j],alternativo=pool$PA[k],distancia_m=as.numeric(sf::st_distance(pri[j,],pool[k,])))})
+      mq_csv(do.call(rbind,same),file.path(report,'alternativos_mesmo_estrato.csv'))
+    }
   }
 }
 
@@ -1375,12 +1624,13 @@ mq_report <- function(root,c,stages,status,notes,inventory) {
   r<-file.path(root,'02_relatorio');e<-monitora_qfield_xml
   mq_csv(stages,file.path(r,'etapas.csv'));mq_json(utils::modifyList(c,list(url_xyz='configurada; omitida do relatório',cabecalhos_xyz=as.list(names(c$cabecalhos_xyz)))),file.path(r,'configuracao.json'));mq_csv(inventory,file.path(r,'fontes_e_checksums.csv'))
   trs<-apply(stages,1,function(v)paste0('<tr>',paste0('<td>',e(v),'</td>',collapse=''),'</tr>'))
-  txt<-c('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Relatório de execução — Monitora QField</title><style>body{font:16px sans-serif;max-width:1100px;margin:40px auto;line-height:1.5;padding:0 20px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:8px;text-align:left}h1{color:#165c46}</style>',paste0('<h1>',e(c$projeto),'</h1><p>Versão 0.2.0 · ',e(status),'</p>'),'<p>Produto de planejamento e navegação. Homologação automática não substitui verificação em QField no aparelho, em modo avião, nem aplicação do roteiro em campo.</p>',paste0('<ul>',paste0('<li>',e(notes),'</li>',collapse=''),'</ul>'),paste0('<table><thead><tr>',paste0('<th>',e(names(stages)),'</th>',collapse=''),'</tr></thead><tbody>',paste(trs,collapse=''),'</tbody></table>'),if(file.exists(file.path(r,'mapa_planejamento.png'))) '<p><img src="mapa_planejamento.png" alt="Visão geral das áreas e pontos" style="width:100%"></p>' else '', '<p>Detalhes: configuracao.json; consulta_uc.json; referencia_grade.json e cadastro_grade.gpkg (planejamento/expansão); camadas.csv; imagens.csv; legenda/fonte MapBiomas; diagnosticos/; fontes_e_checksums.csv; manifesto.csv.</p></html>')
+  txt<-c('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Relatório de execução — Monitora QField</title><style>body{font:16px sans-serif;max-width:1100px;margin:40px auto;line-height:1.5;padding:0 20px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:8px;text-align:left}h1{color:#165c46}</style>',paste0('<h1>',e(c$projeto),'</h1><p>Versão 0.3.0 · ',e(status),'</p>'),'<p>Produto de planejamento e navegação. Homologação automática não substitui verificação em QField no aparelho, em modo avião, nem aplicação do roteiro em campo.</p>',paste0('<ul>',paste0('<li>',e(notes),'</li>',collapse=''),'</ul>'),paste0('<table><thead><tr>',paste0('<th>',e(names(stages)),'</th>',collapse=''),'</tr></thead><tbody>',paste(trs,collapse=''),'</tbody></table>'),if(file.exists(file.path(r,'mapa_planejamento.png'))) '<p><img src="mapa_planejamento.png" alt="Visão geral das áreas e pontos" style="width:100%"></p>' else '', '<p>Detalhes: cotas_solicitadas.csv, cotas_realizadas.csv, alocacao_combinacoes.csv, solucao_cotas.json, fontes_estratos.json (quando habilitadas); configuracao.json; consulta_uc.json; referencia_grade.json e cadastro_grade.gpkg (planejamento/expansão); camadas.csv; imagens.csv; legenda/fonte MapBiomas; diagnosticos/; fontes_e_checksums.csv; manifesto.csv.</p></html>')
   writeLines(enc2utf8(txt),file.path(r,'relatorio_execucao.html'),useBytes=TRUE)
 }
 
 monitora_criar_qfield <- function(config=MQ_CONFIG) {
   mq_deps();c<-utils::modifyList(MQ_CONFIG,config,keep.null=TRUE);mq_validate_config(c)
+  if(mq_design_active(c)&&!requireNamespace('lpSolve',quietly=TRUE))mq_stop('Instale lpSolve antes de iniciar o desenho com cotas cumulativas.')
   c$script_sha256<-if(!is.na(MQ_SCRIPT_ARQUIVO))mq_hash(MQ_SCRIPT_ARQUIVO)else NA_character_
   input<-normalizePath(c$entrada,winslash='/',mustWork=TRUE);out<-normalizePath(c$saida,winslash='/',mustWork=FALSE)
   if(tolower(input)==tolower(out) || startsWith(tolower(out),paste0(tolower(input),'/')) || startsWith(tolower(input),paste0(tolower(out),'/')))mq_stop('Entrada e saída precisam ser pastas separadas e não aninhadas.')
@@ -1394,9 +1644,10 @@ monitora_criar_qfield <- function(config=MQ_CONFIG) {
   files<-list.files(input,recursive=TRUE,full.names=TRUE);files<-files[!file.info(files)$isdir]
   inv<-data.frame(arquivo=substring(files,nchar(input)+2),bytes=file.info(files)$size,sha256=vapply(files,mq_hash,character(1)))
   stages<-data.frame(etapa=character(),segundos=numeric(),descricao=character());t0<-proc.time()[3];last<-t0
-  note<-c('Roteiro 29/04/2026: PA = início previsto; deslocamento em campo até 10 m; tentar N, L, S, O; depois alternativo mais próximo. Distâncias se aplicam ao segmento inteiro.', 'Grade 156,25 m não garante 100 m entre transectos instalados. A formação MapBiomas não substitui a observada. Não houve exclusão automática por simulação, proximidade ou classe cartográfica.', 'As linhas entre extremos observados representam ligações; não são trajetos de acesso levantados. Apoio de campo é editável e precisa ser preservado antes de atualizar o projeto.')
+  note<-c('Roteiro 29/04/2026: PA = início previsto; deslocamento em campo até 10 m; tentar N, L, S, O; depois alternativo mais próximo. Distâncias se aplicam ao segmento inteiro.', 'Grade 156,25 m não garante 100 m entre transectos instalados. A formação MapBiomas não substitui a observada. Simulações e proximidade não excluem pontos automaticamente. Quando habilitada, a classificação do desenho e suas exclusões são registradas no relatório.', 'As linhas entre extremos observados representam ligações; não são trajetos de acesso levantados. Apoio de campo é editável e precisa ser preservado antes de atualizar o projeto.')
   step<-function(name,description){now<-proc.time()[3];stages<<-rbind(stages,data.frame(etapa=name,segundos=round(now-last,2),descricao=description));last<<-now;message(sprintf('[%s] %s — %.1f s acumulados',name,description,now-t0))}
   result<-tryCatch({
+    c<-mq_design_load(c,input,report)
     dat<-mq_read(input,scratch);step('01_entrada',paste(length(dat$camadas),'camadas; geometria/CRS/papéis conferidos; fontes preservadas'))
     supplied<-any(vapply(dat$camadas,function(l)l$papel%in%c('PA_priorit','PA_altern','grade_amostral','verg_ini','verg_fin','UAs','transectos'),logical(1)))
     mode<-c$modo;if(mode=='auto')mode<-if(supplied)'montar'else 'planejar'
@@ -1413,6 +1664,7 @@ monitora_criar_qfield <- function(config=MQ_CONFIG) {
       rd<-normalizePath(c$referencia_anterior,mustWork=TRUE)
       prev<-jsonlite::read_json(file.path(rd,'referencia_grade.json'),simplifyVector=FALSE)
       old<-sf::st_read(file.path(rd,'cadastro_grade.gpkg'),quiet=TRUE)
+      old<-sf::st_sf(sf::st_drop_geometry(old),geometry=sf::st_geometry(old))
       if(mq_hash(file.path(rd,'cadastro_grade.gpkg'))!=prev$cadastro_sha256)mq_stop('Cadastro anterior difere da assinatura registrada.')
       prev$grade_m<-unlist(prev$grade_m);for(i in seq_along(prev$contextos))prev$contextos[[i]]$origem<-unlist(prev$contextos[[i]]$origem)
       # A origem/projeção anteriores prevalecem sobre seleção automática baseada em AE expandida.
@@ -1421,16 +1673,35 @@ monitora_criar_qfield <- function(config=MQ_CONFIG) {
     }
     if(mode!='montar') {
       contexts<-mq_contexts(dat$ae,official$x,cr,c$grade_m,prev)
-      g<-mq_grid(dat$ae,contexts,cr,c,old);g<-mq_select(g,c)
+      g<-mq_grid(dat$ae,contexts,cr,c,old)
+      if(mq_design_active(c)) {
+        contract<-mq_design_contract(c)
+        if(!is.null(prev$contrato_estratos)&&!identical(prev$contrato_estratos$sha256,contract$sha256))mq_stop('Contrato de classificação mudou (fonte, campos, mapeamento, coleção/ano ou perfil). Expansão exige revisão/migração explícita; histórico não alterado.')
+        g<-mq_design_classify(g,dat$camadas,c,report)
+        if(!is.null(prev$campos_estratos) && !identical(sort(unlist(prev$campos_estratos)),sort(names(mq_design_criteria(g,c,mq_quantity(c$prioritarios,nrow(g),ceiling(.2*nrow(g))))))))mq_stop('Campos de estratificação mudaram em relação ao cadastro anterior.')
+        g<-mq_design_select(g,c,report,old)
+        note<-c(note,'Cotas cumulativas resolvidas conjuntamente; veja cotas_solicitadas.csv, cotas_realizadas.csv e alocacao_combinacoes.csv. Zero por combinação não permite inferência para ela. PA não é UA instalada; viabilidade do segmento depende de campo.')
+      } else {
+        if(!is.null(old)&&'mq_estrato'%in%names(old))mq_stop('Expansão não pode desativar o desenho estratificado anterior.')
+        g<-mq_select(g,c)
+      }
       # Cadastro inclui pontos históricos fora da AE atual para nunca reciclar seus IDs.
       ledger<-g
-      if(!is.null(old)){keep<-old[!old$chave_grade%in%g$chave_grade,];if(nrow(keep))ledger<-rbind(g,keep[,names(g)])}
+      if(!is.null(old)){keep<-old[!old$chave_grade%in%g$chave_grade,];if(nrow(keep)){
+        for(n in setdiff(names(g),names(keep)))keep[[n]]<-g[[n]][rep(NA_integer_,nrow(keep))]
+        for(n in setdiff(names(keep),names(g)))ledger[[n]]<-keep[[n]][rep(NA_integer_,nrow(ledger))]
+        ledger<-rbind(ledger,keep[,names(ledger)])
+      }}
       sf::st_write(ledger,file.path(report,'cadastro_grade.gpkg'),layer='cadastro',quiet=TRUE)
       domain<-sf::st_union(ae);if(!is.null(prev$dominio_processado_wkt))domain<-sf::st_union(c(sf::st_geometry(domain),sf::st_as_sfc(prev$dominio_processado_wkt,crs=cr)))
       ref<-list(dominio_processado_wkt=sf::st_as_text(domain,digits=16),versao=1,epsg=cr$epsg,grade_m=c$grade_m,contextos=contexts,cadastro_sha256=mq_hash(file.path(report,'cadastro_grade.gpkg')),regra='vértices únicos; fronteiras incluídas; origem fixa; ID nunca renumerado',semente=c$semente)
+      if(mq_design_active(c)){
+        ref$campos_estratos<-names(mq_design_criteria(g,c,sum(g$categoria=='prioritario')))
+        ref$contrato_estratos<-contract
+      }
       mq_json(ref,file.path(report,'referencia_grade.json'))
       step('03_grade',sprintf('%d vértices na união das AEs; %d prioritários; %d alternativos; denominador global=%d',nrow(g),sum(g$categoria=='prioritario'),sum(g$categoria=='alternativo'),nrow(g)))
-      if(isTRUE(c$mapbiomas))g<-mq_mb(g,c,report)
+      if(isTRUE(c$mapbiomas)&&!'mb_codigo'%in%names(g))g<-mq_mb(g,c,report)
       g<-mq_coordinates(g)
       for(role in c('grade_amostral','PA_priorit','PA_altern')) {
         z<-if(role=='grade_amostral')g else g[g$categoria==if(role=='PA_priorit')'prioritario'else 'alternativo',]
@@ -1439,16 +1710,32 @@ monitora_criar_qfield <- function(config=MQ_CONFIG) {
       pts<-g[g$categoria!='grade',]
       mq_diagnostics(pts,dat$camadas,ae,c,file.path(report,'diagnosticos'))
     } else {
-      labels<-list()
+      labels<-list();assembled<-list();audit_complete<-TRUE
       for(i in seq_along(dat$camadas)) {
         l<-dat$camadas[[i]];x<-l$x
         if(nrow(x)&&all(as.character(sf::st_geometry_type(x))=='POINT')) {
           if(isTRUE(c$mapbiomas))x<-mq_mb(x,c,report)
+          if(mq_design_active(c)) {
+            audit_dir<-file.path(report,'diagnosticos',paste0('estratos_',l$nome));dir.create(audit_dir,recursive=TRUE)
+            x<-tryCatch(mq_design_classify(x,dat$camadas,c,audit_dir),error=function(e){note<<-c(note,paste('Auditoria de estratos pendente em',l$nome,':',conditionMessage(e)));if(l$papel%in%c('PA_priorit','PA_altern'))audit_complete<<-FALSE;x})
+          }
           x<-mq_coordinates(x);dat$camadas[[i]]$x<-x
-          if(l$papel%in%c('PA_priorit','PA_altern'))labels[[l$papel]]<-as.character(x[[l$label]])
+          if(l$papel%in%c('PA_priorit','PA_altern')){
+            labels[[l$papel]]<-as.character(x[[l$label]])
+            if('mq_apto'%in%names(x)){x$categoria<-if(l$papel=='PA_priorit')'prioritario'else 'alternativo';assembled[[l$papel]]<-x}
+          }
         }
       }
       if(length(intersect(labels[['PA_priorit']],labels[['PA_altern']]))>0)mq_stop('Mesmo rótulo PA em prioritários e alternativos.')
+      if(length(assembled)&&mq_design_active(c))tryCatch({
+        if(!audit_complete)mq_stop('Classificação incompleta nas camadas de PAs; margens não calculadas com subconjunto.')
+        # Somente conferência das margens fornecidas; jamais substituir os pontos.
+        z<-do.call(rbind,lapply(assembled,function(x)x[,unique(c('categoria','mq_apto',if(c$estratificar_vegetacao)c('mq_formacao',if(!is.null(c$fitofisionomia_campo))'mq_fitofisionomia'),paste0('atr_',if(c$estratificar_por_atributos)names(c$cotas_atributos)))),drop=FALSE]))
+        np<-sum(z$categoria=='prioritario');crit<-mq_design_criteria(z,c,np);audit<-list()
+        for(f in names(crit))for(j in seq_len(nrow(crit[[f]]))){q<-crit[[f]][j,];audit[[length(audit)+1]]<-data.frame(atributo=f,classe=q$classe,alvo=q$alvo,prioritarios=sum(z$categoria=='prioritario'&z[[f]]==q$classe),alternativos=sum(z$categoria=='alternativo'&z[[f]]==q$classe))}
+        mq_csv(do.call(rbind,audit),file.path(report,'cotas_fornecidas_auditoria.csv'))
+        note<-c(note,'Montagem: cotas auditadas contra o total de prioritários fornecidos; nenhuma complementação ou alteração dos PAs/UAs.')
+      },error=function(e)note<<-c(note,paste('Auditoria de cotas fornecidas pendente:',conditionMessage(e))))
       imp<-lapply(dat$camadas,function(l){x<-l$x;if(!nrow(x)||!all(as.character(sf::st_geometry_type(x))=='POINT'))return(NULL);data.frame(camada=l$nome,n=nrow(x),fora_AE=sum(lengths(sf::st_intersects(x,ae))==0),id_grade_ausente=if('id_grade'%in%names(x))sum(is.na(x$id_grade))else nrow(x),observacao='Identidade e posição fornecidas preservadas; ausência de id_grade não foi preenchida por inferência.')});imp<-Filter(Negate(is.null),imp);if(length(imp))mq_csv(do.call(rbind,imp),file.path(report,'diagnosticos','pontos_fornecidos.csv'))
       step('03_montagem','Pontos fornecidos preservados; nenhuma grade/PA novo nem complementação de cotas.')
     }
@@ -1469,7 +1756,7 @@ monitora_criar_qfield <- function(config=MQ_CONFIG) {
     mq_qgs(dat$camadas,ras,ae,c,file.path(root,'01_qfield','projeto.qgs'))
     step('06_exportacao','QGS, GeoPackages, CSV, KML e KMZ gerados e reabertos para conferência.')
     after<-vapply(files,mq_hash,character(1));if(!identical(unname(after),unname(inv$sha256)))mq_stop('Arquivo de entrada alterado durante a execução.')
-    guide<-c('MONITORA QFIELD — v0.2.0',paste('Projeto:',c$projeto),paste('Modo:',mode),note,'Coordenadas exibidas em latitude/longitude WGS84, graus decimais, seis casas. Cálculos em CRS métrico. Confirme posicionamento, identificação, labels, zoom e apoio editável no QField em modo avião.','Importe o ZIP em pasta nova. Não substitua apoio_campo.gpkg já preenchido.','Camadas PA são referências planejadas, não UAs instaladas. Não há envio automático ao QFieldCloud.','Relatório completo está na pasta 02_relatorio da entrega. Falhas opcionais constam nos atributos e no relatório.')
+    guide<-c('MONITORA QFIELD — v0.3.0',paste('Projeto:',c$projeto),paste('Modo:',mode),note,'Coordenadas exibidas em latitude/longitude WGS84, graus decimais, seis casas. Cálculos em CRS métrico. Confirme posicionamento, identificação, labels, zoom e apoio editável no QField em modo avião.','Importe o ZIP em pasta nova. Não substitua apoio_campo.gpkg já preenchido.','Camadas PA são referências planejadas, não UAs instaladas. Não há envio automático ao QFieldCloud.','Relatório completo está na pasta 02_relatorio da entrega. Falhas opcionais constam nos atributos e no relatório.')
     writeLines(enc2utf8(guide),file.path(root,'01_qfield','LEIA_ME.txt'),useBytes=TRUE)
     zipfile<-file.path(root,'01_qfield','pacote_qfield.zip');zip::zipr(zipfile,c('projeto.qgs','dados','mapas','LEIA_ME.txt'),root=file.path(root,'01_qfield'))
     z<-zip::zip_list(zipfile);if(!all(c('projeto.qgs','LEIA_ME.txt')%in%z$filename))mq_stop('Pacote QField incompleto.')
@@ -1479,12 +1766,13 @@ monitora_criar_qfield <- function(config=MQ_CONFIG) {
     if(attr(ras,'download_status')%in%c('download_incompleto','exportacao_detalhe_incompleta','download_nao_autorizado'))status<-paste(status,'; detalhe sem aquisição completa')
     mb_states<-unlist(lapply(dat$camadas,function(l)if('mb_status'%in%names(l$x))unique(l$x$mb_status)else NULL))
     if(any(grepl('^falha|sem_dado|codigo_sem_legenda',mb_states))){status<-paste(status,'; MapBiomas com pendências');note<-c(note,unique(mb_states[mb_states!='obtido']))}
+    if(any(grepl('Auditoria.*pendente',note)))status<-paste(status,'; estratificação fornecida com pendências')
     mq_overview(dat$camadas,ae,file.path(report,'mapa_planejamento.png'))
     mq_report(root,c,stages,status,note,inv)
     unlink(scratch,recursive=TRUE)
     fs<-list.files(root,recursive=TRUE,full.names=TRUE);fs<-fs[!file.info(fs)$isdir]
     mq_csv(data.frame(arquivo=substring(fs,nchar(root)+2),bytes=file.info(fs)$size,sha256=vapply(fs,mq_hash,character(1))),file.path(report,'manifesto.csv'))
-    mq_json(list(status=status,modo=mode,segundos=round(proc.time()[3]-t0,2),versao='0.2.0'),file.path(report,'resultado.json'))
+    mq_json(list(status=status,modo=mode,segundos=round(proc.time()[3]-t0,2),versao='0.3.0'),file.path(report,'resultado.json'))
     if(file.exists(final)||!file.rename(root,final))mq_stop('Falha ao promover pacote; construção preservada.')
     message('Concluído: ',final);list(pasta=final,status=status,modo=mode)
   },error=function(e){
