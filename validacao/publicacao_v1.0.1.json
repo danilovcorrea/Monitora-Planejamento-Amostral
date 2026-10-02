@@ -1,0 +1,41 @@
+{
+  "versao": "1.0.1",
+  "data": "2026-10-02",
+  "candidata": {
+    "versao_publica": "1.0.1",
+    "repositorio": "https://github.com/danilovcorrea/Monitora-Planejamento-Amostral",
+    "candidata_homologada": "1.0.1-rc3",
+    "commit_candidata": "e5a8ebb2b8d2d11c0e51c7ad5b79835b9f669ac8",
+    "sha256_R_candidata": "06998e3b1cb84dd59127c5fcb9b501c082e77f010b2c5fb4a69235ada44a2ba1",
+    "sha256_R_publicado": "870af6ea1cda1692ae0cfb4393a1b3da101698d1641f44996d33ea2a46f55ab1",
+    "proveniencia_inicial": "proveniencia_v1.0.0.json",
+    "mudancas_promocao": "Identificação de versão e documentação; funções e configurações preservadas."
+  },
+  "comparacao": {
+    "funcoes_preservadas": 111,
+    "MQ_CONFIG_preservada": true,
+    "MQ_PACOTES_preservados": true,
+    "alias_compativel": true
+  },
+  "suites_R_aprovadas": 15,
+  "evidencia_testes": "testes_dimensoes_v1.0.1-rc3.json",
+  "rodada_real_windows": {
+    "status": "PASS",
+    "grade": 12,
+    "prioritarios": 3,
+    "alternativos": 6,
+    "ids_coordenadas_classes_preservados": true,
+    "AE_XYZ_preservada": true,
+    "contexto_XY_valido": true,
+    "tiles_cache": 148,
+    "tiles_baixados": 0,
+    "recorte_cache_preservado": true,
+    "pdf": 4,
+    "png": 4
+  },
+  "teste_fisico_novo_no_celular": false,
+  "manual": {
+    "pdf_paginas": 16,
+    "html_e_pdf_mesma_versao": true
+  }
+}

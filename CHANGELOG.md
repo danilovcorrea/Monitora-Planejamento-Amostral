@@ -1,5 +1,9 @@
 # Histórico
 
+## 1.0.1 — 2026-10-02
+
+Publica a candidata homologada 1.0.1-rc3: instalação e carregamento de dependências, namespaces explícitos, correção do progresso interativo e do erro WKB ao reunir polígonos XYZ e raios XY. Cache e dados de origem preservados. Quinze suítes aprovadas e execução integral com dados reais no Windows, incluindo QGIS/QField e mapas. Manual HTML/PDF atualizado. A promoção altera identificação e documentação, sem mudar a lógica da candidata validada.
+
 ## 1.0.1-rc3 — 2026-10-02 (candidata)
 
 Corrige a união de AEs com coordenadas Z/M e raios de imagem XY, que gerava erro WKB após o recorte. A normalização para XY ocorre somente no contexto derivado de imagens; arquivos de entrada, camadas originais e cache são preservados. Teste de regressão com pipeline XYZ e combinações XY/XYZ/XYM/XYZM.

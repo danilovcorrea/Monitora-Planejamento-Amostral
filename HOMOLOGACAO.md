@@ -1,3 +1,13 @@
+# Publicação 1.0.1 — 02/10/2026
+
+Promove a candidata 1.0.1-rc3 após os testes e a execução real abaixo. Na promoção, apenas identificação da versão e documentação foram atualizadas; as funções e configurações são comparadas à candidata antes da publicação. Evidências consolidadas em `validacao/publicacao_v1.0.1.json`.
+
+Quinze suítes R aprovadas com progresso dinâmico; testes no Windows e execução real completa preservando 12 vértices, 3 prioritários e 6 alternativos. Os 148 tiles de detalhe foram reutilizados. Projetos QGIS/QField, quatro PDFs e quatro PNGs gerados e conferidos. Sem novo ensaio físico no celular.
+
+Os registros seguintes descrevem as etapas anteriores à promoção e mantêm seus números de candidata para rastreabilidade.
+
+---
+
 # Correção da candidata 1.0.1-rc3 — 02/10/2026
 
 Erro WKB reproduzido com os dados recebidos e em teste sintético: AE válida em XYZ e raios válidos em XY eram concatenados antes da união, gerando geometria incompatível na serialização. O contexto de imagens passa a normalizar cópias geométricas para XY antes de reunir AE, componentes das UCs e raios; a margem regional permanece a mesma. Geometrias e atributos de origem são preservados.

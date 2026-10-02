@@ -1,8 +1,8 @@
 # Monitora Campestre Savânico - Alvo Global - Planejamento e Desenho Amostral, Cartografia e navegação em campo
 
-**Candidata 1.0.1-rc3 · script R independente · Programa Monitora**
+**Versão 1.0.1 · script R independente · Programa Monitora**
 
-Esta candidata inclui instalação automática dos pacotes ausentes, carregamento dos pacotes necessários e correções das barras de progresso em consoles interativos e do contexto de imagens para polígonos com altitude. Os links públicos abaixo continuam referindo-se à versão publicada 1.0.0; o manual desta candidata está em `docs/index.html` e `docs/manual_usuario.pdf`.
+A versão 1.0.1 instala os pacotes ausentes e carrega as dependências automaticamente. Corrige as barras de progresso em consoles interativos e a criação do contexto de imagens quando os polígonos têm altitude, preservando as camadas originais e o cache.
 
 Ferramenta para planejar o desenho amostral a partir de Áreas Elegíveis, organizar dados espaciais, criar projetos editáveis no QGIS e projetos de navegação no QField, e exportar mapas, vetores, tabelas e relatórios. Inclui os perfis Campestre-Savânico, Ilha e personalizado, com seus critérios próprios.
 
@@ -177,4 +177,4 @@ Na consulta de homologação Noronha, MapBiomas não forneceu classes válidas n
 
 Autoria e coordenação: **Danilo V. Corrêa**. Código sob [GNU GPL v3](LICENSE), preservada do projeto de origem. As fontes e condições de uso das bases cartográficas e imagens são próprias dos respectivos provedores; a licença do código não as substitui. Marcas institucionais são mantidas como identificação de origem.
 
-Citação sugerida: CORRÊA, Danilo V. *Monitora Campestre Savânico - Alvo Global - Planejamento e Desenho Amostral, Cartografia e navegação em campo*. Versão 1.0.0. GitHub, 2026. https://github.com/danilovcorrea/Monitora-Planejamento-Amostral/releases/tag/v1.0.0.
+Citação sugerida: CORRÊA, Danilo V. *Monitora Campestre Savânico - Alvo Global - Planejamento e Desenho Amostral, Cartografia e navegação em campo*. Versão 1.0.1. GitHub, 2026. https://github.com/danilovcorrea/Monitora-Planejamento-Amostral/releases/tag/v1.0.1.
