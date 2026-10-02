@@ -1,0 +1,116 @@
+{
+  "versao": "1.0.1-rc3",
+  "data": "2026-10-02",
+  "backend": "dinamico forçado, renderização imediata; teste específico também cobre textual",
+  "resultados": [
+    {
+      "teste": "test_adaptive.R",
+      "status": "PASS",
+      "segundos": 1.9,
+      "verificacoes_PASS": 29
+    },
+    {
+      "teste": "test_adaptive_integration.R",
+      "status": "PASS",
+      "segundos": 14.6,
+      "verificacoes_PASS": 39
+    },
+    {
+      "teste": "test_core.R",
+      "status": "PASS",
+      "segundos": 9.5,
+      "verificacoes_PASS": 31
+    },
+    {
+      "teste": "test_dependencies.R",
+      "status": "PASS",
+      "segundos": 1.3,
+      "verificacoes_PASS": 14
+    },
+    {
+      "teste": "test_design.R",
+      "status": "PASS",
+      "segundos": 1.6,
+      "verificacoes_PASS": 34
+    },
+    {
+      "teste": "test_design_integration.R",
+      "status": "PASS",
+      "segundos": 20.4,
+      "verificacoes_PASS": 41
+    },
+    {
+      "teste": "test_flexible.R",
+      "status": "PASS",
+      "segundos": 0.6,
+      "verificacoes_PASS": 16
+    },
+    {
+      "teste": "test_flexible_integration.R",
+      "status": "PASS",
+      "segundos": 12.6,
+      "verificacoes_PASS": 35
+    },
+    {
+      "teste": "test_image_dimensions.R",
+      "status": "PASS",
+      "segundos": 11.2,
+      "verificacoes_PASS": 43
+    },
+    {
+      "teste": "test_imagery.R",
+      "status": "PASS",
+      "segundos": 7.6,
+      "verificacoes_PASS": 25
+    },
+    {
+      "teste": "test_island.R",
+      "status": "PASS",
+      "segundos": 1.0,
+      "verificacoes_PASS": 17
+    },
+    {
+      "teste": "test_progress.R",
+      "status": "PASS",
+      "segundos": 0.3,
+      "verificacoes_PASS": 11
+    },
+    {
+      "teste": "test_revision.R",
+      "status": "PASS",
+      "segundos": 10.2,
+      "verificacoes_PASS": 28
+    },
+    {
+      "teste": "test_roads.R",
+      "status": "PASS",
+      "segundos": 2.7,
+      "verificacoes_PASS": 30
+    },
+    {
+      "teste": "test_sentinel_mosaic.R",
+      "status": "PASS",
+      "segundos": 2.9,
+      "verificacoes_PASS": 5
+    }
+  ],
+  "regressao_reproduzida_na_rc2": true,
+  "comparacao": {
+    "funcoes_preservadas": 109,
+    "MQ_CONFIG_identica": true
+  },
+  "rodada_real_windows": {
+    "status": "PASS",
+    "grade": 12,
+    "prioritarios": 3,
+    "alternativos": 6,
+    "ids_coordenadas_classes_preservados": true,
+    "AE_XYZ_preservada": true,
+    "contexto_XY_valido": true,
+    "tiles_cache": 148,
+    "tiles_baixados": 0,
+    "recorte_cache_preservado": true,
+    "pdf": 4,
+    "png": 4
+  }
+}

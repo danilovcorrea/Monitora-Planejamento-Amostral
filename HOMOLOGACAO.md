@@ -1,3 +1,15 @@
+# Correção da candidata 1.0.1-rc3 — 02/10/2026
+
+Erro WKB reproduzido com os dados recebidos e em teste sintético: AE válida em XYZ e raios válidos em XY eram concatenados antes da união, gerando geometria incompatível na serialização. O contexto de imagens passa a normalizar cópias geométricas para XY antes de reunir AE, componentes das UCs e raios; a margem regional permanece a mesma. Geometrias e atributos de origem são preservados.
+
+Quinze suítes passaram com progresso dinâmico, incluindo pipeline com AE XYZ e combinações XY/XYZ/XYM/XYZM, com/sem UC. O novo teste falhou na rc2 com o mesmo erro e passou após a correção. Comparação preservou 109 funções e MQ_CONFIG; alteração funcional restrita à construção do contexto de imagens.
+
+Execução completa no Windows/R 4.6.0 com a entrada real: 12 vértices, 3 prioritários, 6 alternativos; 148 tiles reaproveitados, zero download de detalhe. Recorte anterior reutilizado com integridade conferida. Sentinel obtido para o contexto completo. Gerados QField/ZIP, QGIS editável, quatro PDF e quatro PNG, vetores, CSV e relatórios. IDs, categorias, códigos MapBiomas e coordenadas iguais aos do diagnóstico anterior; AE exportada permanece XYZ e contexto derivado é XY válido. Rodada integral em aproximadamente 74 segundos, sem novo teste físico no celular.
+
+Resultados em `validacao/testes_dimensoes_v1.0.1-rc3.json`. Dados e produtos reais permanecem na entrega local. Candidata sem publicação no GitHub.
+
+---
+
 # Correção da candidata 1.0.1-rc2 — 02/10/2026
 
 Falha reproduzida no backend dinâmico do CLI: a barra criada dentro de mq_progress era removida automaticamente quando esse helper retornava. O primeiro update interrompia a seleção com “Cannot find progress bar”. A cobertura anterior usava console redirecionado e não ativava esse backend.

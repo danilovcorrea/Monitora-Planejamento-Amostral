@@ -1,5 +1,9 @@
 # Histórico
 
+## 1.0.1-rc3 — 2026-10-02 (candidata)
+
+Corrige a união de AEs com coordenadas Z/M e raios de imagem XY, que gerava erro WKB após o recorte. A normalização para XY ocorre somente no contexto derivado de imagens; arquivos de entrada, camadas originais e cache são preservados. Teste de regressão com pipeline XYZ e combinações XY/XYZ/XYM/XYZM.
+
 ## 1.0.1-rc2 — 2026-10-02 (candidata)
 
 Corrige o encerramento prematuro das barras CLI em consoles interativos, que interrompia a seleção amostral. O encerramento fica sob controle da etapa; barras aninhadas, atualização a 100% e totais desconhecidos são testados. Formatação usa as variáveis públicas de progresso do CLI. A suíte passa a exercitar explicitamente o modo dinâmico, antes ausente da cobertura.
