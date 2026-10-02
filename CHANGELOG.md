@@ -1,5 +1,9 @@
 # Histórico
 
+## 1.0.1-rc2 — 2026-10-02 (candidata)
+
+Corrige o encerramento prematuro das barras CLI em consoles interativos, que interrompia a seleção amostral. O encerramento fica sob controle da etapa; barras aninhadas, atualização a 100% e totais desconhecidos são testados. Formatação usa as variáveis públicas de progresso do CLI. A suíte passa a exercitar explicitamente o modo dinâmico, antes ausente da cobertura.
+
 ## 1.0.1-rc1 — 2026-10-02 (candidata)
 
 Preparação automática dos pacotes: verifica disponibilidade, instala somente os ausentes e carrega, incluindo lpSolve. Usa os repositórios configurados com fallback CRAN HTTPS, verifica falhas e mantém o carregamento somente de funções sem instalação. Chamadas de funções qualificadas pelo namespace para evitar ambiguidade ao anexar pacotes. Documentação atualizada; sem publicação desta candidata.

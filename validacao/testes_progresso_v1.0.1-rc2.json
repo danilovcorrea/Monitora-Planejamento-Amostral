@@ -1,0 +1,105 @@
+{
+  "versao": "1.0.1-rc2",
+  "data": "2026-10-02",
+  "backend": "dinamico forçado, renderização imediata; teste específico também cobre textual",
+  "resultados": [
+    {
+      "teste": "test_adaptive.R",
+      "status": "PASS",
+      "segundos": 2.0,
+      "verificacoes_PASS": 29
+    },
+    {
+      "teste": "test_adaptive_integration.R",
+      "status": "PASS",
+      "segundos": 14.2,
+      "verificacoes_PASS": 39
+    },
+    {
+      "teste": "test_core.R",
+      "status": "PASS",
+      "segundos": 9.0,
+      "verificacoes_PASS": 31
+    },
+    {
+      "teste": "test_dependencies.R",
+      "status": "PASS",
+      "segundos": 1.3,
+      "verificacoes_PASS": 14
+    },
+    {
+      "teste": "test_design.R",
+      "status": "PASS",
+      "segundos": 1.5,
+      "verificacoes_PASS": 34
+    },
+    {
+      "teste": "test_design_integration.R",
+      "status": "PASS",
+      "segundos": 19.0,
+      "verificacoes_PASS": 41
+    },
+    {
+      "teste": "test_flexible.R",
+      "status": "PASS",
+      "segundos": 0.6,
+      "verificacoes_PASS": 16
+    },
+    {
+      "teste": "test_flexible_integration.R",
+      "status": "PASS",
+      "segundos": 12.0,
+      "verificacoes_PASS": 35
+    },
+    {
+      "teste": "test_imagery.R",
+      "status": "PASS",
+      "segundos": 7.5,
+      "verificacoes_PASS": 25
+    },
+    {
+      "teste": "test_island.R",
+      "status": "PASS",
+      "segundos": 1.0,
+      "verificacoes_PASS": 17
+    },
+    {
+      "teste": "test_progress.R",
+      "status": "PASS",
+      "segundos": 0.3,
+      "verificacoes_PASS": 11
+    },
+    {
+      "teste": "test_revision.R",
+      "status": "PASS",
+      "segundos": 9.9,
+      "verificacoes_PASS": 28
+    },
+    {
+      "teste": "test_roads.R",
+      "status": "PASS",
+      "segundos": 2.5,
+      "verificacoes_PASS": 30
+    },
+    {
+      "teste": "test_sentinel_mosaic.R",
+      "status": "PASS",
+      "segundos": 3.0,
+      "verificacoes_PASS": 5
+    }
+  ],
+  "causa_reproduzida_na_rc1": true,
+  "teste_regressao_falhou_antes_e_passou_depois": true,
+  "windows": {
+    "R": "4.6.0",
+    "backend": "dinamico forçado",
+    "testes_progresso": 11,
+    "integracao_adaptativa": "PASS",
+    "barras_residuais": 0
+  },
+  "comparacao": {
+    "funcoes_preservadas": 107,
+    "MQ_CONFIG_identica": true
+  },
+  "sha256_script": "18bc3953eb07e088ae5188e6e885197ec29a7a2ff2a39c79e82c89a8a6249aff"
+}

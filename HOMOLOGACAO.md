@@ -1,3 +1,15 @@
+# Correção da candidata 1.0.1-rc2 — 02/10/2026
+
+Falha reproduzida no backend dinâmico do CLI: a barra criada dentro de mq_progress era removida automaticamente quando esse helper retornava. O primeiro update interrompia a seleção com “Cannot find progress bar”. A cobertura anterior usava console redirecionado e não ativava esse backend.
+
+Correção: ciclo de vida explícito, encerramento pelo on.exit da etapa, sem término automático no retorno do helper ou na chegada a 100%; barras independentes e limpeza idempotente. A formatação usa as variáveis públicas pb_name e pb_status. Totais desconhecidos e vazios têm apresentação sem cálculo indevido de percentual.
+
+O novo teste falhou na rc1 e passou após a correção. Quatorze suítes R passaram com backend dinâmico forçado e renderização imediata no Linux. No Windows/R 4.6.0 passaram o teste específico e a integração adaptativa completa, incluindo a exportação de pacotes com dados sintéticos, sem barras residuais. A comparação confirmou 107 funções e MQ_CONFIG preservados; a alteração funcional se limita aos três helpers de progresso. Os avisos de compilação dos pacotes sob R 4.6.1 são independentes da falha corrigida.
+
+Evidências: `validacao/testes_progresso_v1.0.1-rc2.json`. Diagnóstico original, entradas e cache preservados. Sem novos downloads de imagens, nova rodada real ou publicação no GitHub.
+
+---
+
 # Validação da candidata 1.0.1-rc1 — 02/10/2026
 
 Preparação dos pacotes conforme o script principal: verificação, instalação somente quando indisponíveis e carregamento. Inclui lpSolve; instalação por utils::install.packages e carregamento por base::library. Repositórios configurados são respeitados, com CRAN HTTPS quando indefinido. O carregamento somente de funções permanece sem instalação.
