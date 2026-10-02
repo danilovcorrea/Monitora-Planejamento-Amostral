@@ -1,15 +1,15 @@
 # Metas cumulativas adaptáveis: nunca transformar falta de capacidade em falsa conformidade.
 mq_design_select <- function(g,c,report,old=NULL) {
   if(!c$estratificar_vegetacao&&!c$estratificar_por_atributos)return(mq_select(g,c,report))
-  if(identical(c$politica_insuficiencia,'bloquear'))return(mq_design_select_estrito(g,c,report,old))
-  if(!requireNamespace('lpSolve',quietly=TRUE))mq_stop('Instale lpSolve para resolver metas cumulativas.')
-  N<-nrow(g);requested<-c(prioritarios=mq_quantity(c$prioritarios,N,ceiling(.2*N)))
+  if(base::identical(c$politica_insuficiencia,'bloquear'))return(mq_design_select_estrito(g,c,report,old))
+  if(!base::requireNamespace('lpSolve',quietly=TRUE))mq_stop('Instale lpSolve para resolver metas cumulativas.')
+  N<-base::nrow(g);requested<-c(prioritarios=mq_quantity(c$prioritarios,N,ceiling(.2*N)))
   requested<-c(requested,alternativos=mq_quantity(c$alternativos,N,unname(2L*requested[1])))
   criteria<-mq_design_criteria(g,c,requested[1]);fields<-names(criteria)
   if(!length(fields))return(mq_select(g,c,report))
   viable<-g$mq_apto&mq_road_available(g)
   # Zero declarado é exclusão. Zero de meta automática para antropizadas permite complemento.
-  for(f in fields){q<-criteria[[f]];explicit<-if('explicita'%in%names(q))q$explicita else rep(TRUE,nrow(q));zero<-q$classe[explicit&q$valor==0];viable<-viable&!g[[f]]%in%zero}
+  for(f in fields){q<-criteria[[f]];explicit<-if('explicita'%in%names(q))q$explicita else rep(TRUE,base::nrow(q));zero<-q$classe[explicit&q$valor==0];viable<-viable&!g[[f]]%in%zero}
   if(!any(viable))mq_stop('Nenhum candidato elegível/classificado após exclusões e restrições. Consulte classificacao_vegetacao.csv e vegetacao_pendente.csv; ausência de classificação não prova ausência de alvo.')
   if(any(g$categoria!='grade'&!viable))mq_stop('PA histórico incompatível com elegibilidade, exclusão explícita ou vias; migração/revisão necessária.')
   opn<-sum(g$categoria=='prioritario');oan<-sum(g$categoria=='alternativo')
@@ -20,16 +20,16 @@ mq_design_select <- function(g,c,report,old=NULL) {
   tuples<-do.call(paste,c(lapply(sf::st_drop_geometry(g)[,fields,drop=FALSE],function(v){v<-as.character(v);paste0(nchar(v,type='bytes'),':',v)}),sep='|'))
   keys<-vapply(tuples,digest::digest,character(1),algo='sha256',serialize=FALSE);g$mq_estrato<-keys;g$mq_estrato[!g$mq_apto]<-'fora_alvo'
   if(!is.null(old)) {
-    ix<-match(g$chave_grade,old$chave_grade);sel<-which(!is.na(ix)&g$categoria!='grade')
+    ix<-base::match(g$chave_grade,old$chave_grade);sel<-which(!is.na(ix)&g$categoria!='grade')
     if(length(sel)&&(!'mq_estrato'%in%names(old)||anyNA(old$mq_estrato[ix[sel]])||any(old$mq_estrato[ix[sel]]!=g$mq_estrato[sel])))mq_stop('Expansão mudaria estrato de PA histórico; migração explícita necessária.')
   }
-  cells<-sort(unique(keys[viable]),method='radix');H<-length(cells)
+  cells<-base::sort(base::unique(keys[viable]),method='radix');H<-length(cells)
   if(H>c$max_estratos)mq_stop('Quantidade de combinações acima de max_estratos: ',H)
-  cell<-match(keys,cells);cap<-tabulate(cell[viable],H);op<-tabulate(cell[g$categoria=='prioritario'],H);oa<-tabulate(cell[g$categoria=='alternativo'],H)
-  combos<-sf::st_drop_geometry(g[match(cells,keys),fields,drop=FALSE]);combos$estrato<-cells;combos$disponiveis<-cap;combos$preservados_p<-op;combos$preservados_a<-oa
+  cell<-base::match(keys,cells);cap<-tabulate(cell[viable],H);op<-tabulate(cell[g$categoria=='prioritario'],H);oa<-tabulate(cell[g$categoria=='alternativo'],H)
+  combos<-sf::st_drop_geometry(g[base::match(cells,keys),fields,drop=FALSE]);combos$estrato<-cells;combos$disponiveis<-cap;combos$preservados_p<-op;combos$preservados_a<-oa
   mq_csv(combos,file.path(report,'combinacoes_disponiveis.csv'))
   bands<-list()
-  for(f in fields)for(j in seq_len(nrow(criteria[[f]])))for(k in 0:1) {
+  for(f in fields)for(j in seq_len(base::nrow(criteria[[f]])))for(k in 0:1) {
     q<-criteria[[f]][j,];share<-if(q$medida=='percentual')q$valor/100 else if(requested[1]>0)q$alvo/requested[1] else 0
     wanted<-if(k==0)q$alvo else requested[2]*share
     target<-if(q$medida=='percentual')c(np,na)[k+1]*share else wanted
@@ -59,13 +59,13 @@ mq_design_select <- function(g,c,report,old=NULL) {
   actual<-vapply(bands,function(b)sum(counts[b$ix]),numeric(1))
   marginal<-do.call(rbind,lapply(seq_along(bands),function(j){b<-bands[[j]];data.frame(atributo=b$campo,classe=b$classe,grupo=b$grupo,medida=b$medida,valor=b$valor,solicitado=b$solicitado,alvo_real=b$alvo,minimo=floor(b$alvo+1e-8),maximo=ceiling(b$alvo-1e-8),realizado=actual[j],desvio=actual[j]-b$alvo,deficit_solicitado=max(0,b$solicitado-actual[j]))}))
   marginal$fora_margem<-marginal$realizado<marginal$minimo|marginal$realizado>marginal$maximo
-  mq_csv(marginal[,setdiff(names(marginal),c('realizado','desvio','deficit_solicitado','fora_margem'))],file.path(report,'cotas_solicitadas.csv'));mq_csv(marginal,file.path(report,'cotas_realizadas.csv'))
+  mq_csv(marginal[,base::setdiff(names(marginal),c('realizado','desvio','deficit_solicitado','fora_margem'))],file.path(report,'cotas_solicitadas.csv'));mq_csv(marginal,file.path(report,'cotas_realizadas.csv'))
   combos$prioritarios<-p;combos$alternativos<-a;mq_csv(combos,file.path(report,'alocacao_combinacoes.csv'))
   rank<-vapply(g$chave_grade,function(k)digest::digest(paste(c$semente,k,sep=':'),algo='sha256',serialize=FALSE),character(1))
   for(h in seq_len(H)) {
     available<-which(viable&!is.na(cell)&cell==h&g$categoria=='grade');available<-available[order(rank[available],g$id_grade[available])]
-    pp<-head(available,p[h]-op[h]);if(length(pp))g$categoria[pp]<-'prioritario'
-    aa<-head(setdiff(available,pp),a[h]-oa[h]);if(length(aa))g$categoria[aa]<-'alternativo'
+    pp<-utils::head(available,p[h]-op[h]);if(length(pp))g$categoria[pp]<-'prioritario'
+    aa<-utils::head(base::setdiff(available,pp),a[h]-oa[h]);if(length(aa))g$categoria[aa]<-'alternativo'
   }
   if(any(g$categoria!='grade'&!viable)||sum(g$categoria=='prioritario')!=np||sum(g$categoria=='alternativo')!=na)mq_stop('Seleção final divergiu da solução verificada.')
   adjusted<-any(quantities$deficit>0)||any(marginal$fora_margem)
@@ -82,11 +82,11 @@ mq_selection_occurrences <- function(g,c,report) {
     out<-g[nzchar(g$mq_ocorrencia),];mq_csv(out,file.path(report,'ocorrencias_vegetacao.csv'))
     n<-sum(nzchar(g$mq_ocorrencia)&g$categoria!='grade');pending<-sum(g$mq_formacao=='nao_resolvida')
     if(n||pending)notes<-c(notes,paste('Ocorrências vegetacionais:',n,'PAs em pastagem/degradada;',pending,'pontos sem classificação excluídos. Consulte ocorrencias_vegetacao.csv; não comprova conformidade de campo.'))
-    mq_csv(as.data.frame(table(categoria=g$categoria,formacao=g$mq_formacao)),file.path(report,'distribuicao_formacoes.csv'))
+    mq_csv(base::as.data.frame(table(categoria=g$categoria,formacao=g$mq_formacao)),file.path(report,'distribuicao_formacoes.csv'))
   }
   if(c$perfil=='campestre_savanico'&&'mq_formacao'%in%names(g)&&any(g$mq_apto)) {
     field<-if('mq_fitofisionomia'%in%names(g))'mq_fitofisionomia'else 'mq_formacao'
-    effort<-data.frame(estrato=sort(unique(g[[field]][g$mq_apto])))
+    effort<-data.frame(estrato=base::sort(base::unique(g[[field]][g$mq_apto])))
     effort$PA_prioritarios<-vapply(effort$estrato,function(v)sum(g$categoria=='prioritario'&g[[field]]==v),integer(1))
     effort$observacao<-'PA candidato não comprova UA instalada nem esforço protocolar consolidado.'
     mq_csv(effort,file.path(report,'esforco_planejado.csv'))

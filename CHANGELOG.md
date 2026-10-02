@@ -1,5 +1,9 @@
 # Histórico
 
+## 1.0.1-rc1 — 2026-10-02 (candidata)
+
+Preparação automática dos pacotes: verifica disponibilidade, instala somente os ausentes e carrega, incluindo lpSolve. Usa os repositórios configurados com fallback CRAN HTTPS, verifica falhas e mantém o carregamento somente de funções sem instalação. Chamadas de funções qualificadas pelo namespace para evitar ambiguidade ao anexar pacotes. Documentação atualizada; sem publicação desta candidata.
+
 ## 1.0.0 — 2026-10-01
 
 Primeira versão pública independente. Publica o comportamento homologado 0.4.7 sob o nome ampliado da ferramenta. Arquivo principal `monitora_planejamento_amostral.R`; função homônima e alias anterior compatível. Manual HTML no GitHub Pages e PDF pronto para download. Histórico do componente preservado por extração dos arquivos pertinentes; hashes de origem em `validacao/historico_origem.txt`.

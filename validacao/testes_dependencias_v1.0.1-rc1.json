@@ -1,0 +1,102 @@
+{
+  "versao": "1.0.1-rc1",
+  "data": "2026-10-02",
+  "escopo": "Suíte R sintética, incluindo instalação em biblioteca temporária isolada; sem downloads de imagens",
+  "resultados": [
+    {
+      "teste": "test_adaptive.R",
+      "status": "PASS",
+      "segundos": 1.6,
+      "verificacoes_PASS": 29
+    },
+    {
+      "teste": "test_adaptive_integration.R",
+      "status": "PASS",
+      "segundos": 14.5,
+      "verificacoes_PASS": 39
+    },
+    {
+      "teste": "test_core.R",
+      "status": "PASS",
+      "segundos": 9.4,
+      "verificacoes_PASS": 31
+    },
+    {
+      "teste": "test_dependencies.R",
+      "status": "PASS",
+      "segundos": 1.2,
+      "verificacoes_PASS": 14
+    },
+    {
+      "teste": "test_design.R",
+      "status": "PASS",
+      "segundos": 1.5,
+      "verificacoes_PASS": 34
+    },
+    {
+      "teste": "test_design_integration.R",
+      "status": "PASS",
+      "segundos": 19.1,
+      "verificacoes_PASS": 41
+    },
+    {
+      "teste": "test_flexible.R",
+      "status": "PASS",
+      "segundos": 0.6,
+      "verificacoes_PASS": 16
+    },
+    {
+      "teste": "test_flexible_integration.R",
+      "status": "PASS",
+      "segundos": 12.0,
+      "verificacoes_PASS": 35
+    },
+    {
+      "teste": "test_imagery.R",
+      "status": "PASS",
+      "segundos": 7.5,
+      "verificacoes_PASS": 25
+    },
+    {
+      "teste": "test_island.R",
+      "status": "PASS",
+      "segundos": 1.0,
+      "verificacoes_PASS": 17
+    },
+    {
+      "teste": "test_revision.R",
+      "status": "PASS",
+      "segundos": 9.5,
+      "verificacoes_PASS": 28
+    },
+    {
+      "teste": "test_roads.R",
+      "status": "PASS",
+      "segundos": 2.3,
+      "verificacoes_PASS": 30
+    },
+    {
+      "teste": "test_sentinel_mosaic.R",
+      "status": "PASS",
+      "segundos": 3.0,
+      "verificacoes_PASS": 5
+    }
+  ],
+  "windows": {
+    "R": "4.6.0",
+    "testes_preparacao": 14,
+    "status": "PASS",
+    "pacotes_reais_carregados": 15,
+    "observacoes": "RSQLite, jpeg e lpSolve emitem avisos de compilação com R 4.6.1; carregamento concluído no R 4.6.0. Bibliotecas existentes preservadas."
+  },
+  "comparacao": {
+    "funcoes_preservadas_apos_normalizar_namespaces_e_versao": 106,
+    "MQ_CONFIG_identica": true,
+    "alias_compativel": true
+  },
+  "manual": {
+    "pdf_paginas": 16,
+    "versao_e_texto_conferidos": true
+  },
+  "sha256_script": "0adfc8e9d0783a8912f270696b8be0b1d8ffc7474618a3f6014d419845014524"
+}

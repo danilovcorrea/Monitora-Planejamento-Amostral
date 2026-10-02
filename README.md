@@ -1,6 +1,8 @@
 # Monitora Campestre Savânico - Alvo Global - Planejamento e Desenho Amostral, Cartografia e navegação em campo
 
-**Versão 1.0.0 · script R independente · Programa Monitora**
+**Candidata 1.0.1-rc1 · script R independente · Programa Monitora**
+
+Esta candidata inclui instalação automática dos pacotes ausentes e carregamento dos pacotes necessários. Os links públicos abaixo continuam referindo-se à versão publicada 1.0.0; o manual desta candidata está em `docs/index.html` e `docs/manual_usuario.pdf`.
 
 Ferramenta para planejar o desenho amostral a partir de Áreas Elegíveis, organizar dados espaciais, criar projetos editáveis no QGIS e projetos de navegação no QField, e exportar mapas, vetores, tabelas e relatórios. Inclui os perfis Campestre-Savânico, Ilha e personalizado, com seus critérios próprios.
 
@@ -17,11 +19,11 @@ Esta ferramenta deriva da versão homologada 0.4.7 do módulo independente desen
 1. Crie somente `entrada/` ao lado do arquivo R. Subpastas são lidas recursivamente; todas as pastas de saída são automáticas.
 2. Coloque na entrada pelo menos uma camada de polígonos identificada como `areas_elegiveis`.
 3. Edite o bloco `MQ_CONFIG`, perto do início do script, com caminhos relativos à pasta do script ou absolutos. No Windows, prefira `/` nos caminhos.
-4. Instale, caso faltem: `sf`, `terra`, `xml2`, `zip`, `jsonlite`, `digest`, `httr`, `data.table`, `DBI`, `RSQLite`, `cli`, `curl`, `png`, `jpeg`, `lpSolve`.
+4. O script verifica, instala quando ausentes e carrega: `sf`, `terra`, `xml2`, `zip`, `jsonlite`, `digest`, `httr`, `data.table`, `DBI`, `RSQLite`, `cli`, `curl`, `png`, `jpeg`, `lpSolve`.
 5. Abra o script no RStudio e use **Source**. A conexão à internet é necessária para a consulta oficial às UCs federais. O MapBiomas também usa internet quando ativado.
 6. Consulte o relatório. Importe `01_qfield/pacote_qfield.zip` em uma pasta nova do QField e confira em modo avião.
 
-Para usar como biblioteca: `options(monitora.qfield.somente_funcoes=TRUE)` antes de `source()`, e depois `monitora_planejamento_amostral(config)` (o nome anterior `monitora_criar_qfield` permanece como alias compatível). O script não instala pacotes, envia dados ou publica projetos automaticamente.
+Para usar como biblioteca: `options(monitora.qfield.somente_funcoes=TRUE)` antes de `source()`, e depois `monitora_planejamento_amostral(config)` (o nome anterior `monitora_criar_qfield` permanece como alias compatível). Ao executar a função principal, o script prepara os pacotes automaticamente; carregar somente as funções com a opção acima não instala nem anexa pacotes. Usa os repositórios configurados no R, com CRAN HTTPS quando o espelho não foi definido. Pacotes já disponíveis não são reinstalados. Falhas de instalação ou carregamento interrompem a execução com orientação no console. O script não publica projetos automaticamente.
 
 ## Parâmetros
 

@@ -288,7 +288,7 @@ def build(config_file):
     legend.model().refreshLayerLegend(node)
   legend.setStyleFont(QgsLegendStyle.Title,QFont('Arial',10,QFont.Bold));legend.setStyleFont(QgsLegendStyle.SymbolLabel,QFont('Arial',9));legend.setStyleFont(QgsLegendStyle.Subgroup,QFont('Arial',9));layout.addLayoutItem(legend);legend.attemptMove(QgsLayoutPoint(lx+1,fy+1));legend.attemptResize(QgsLayoutSize(lw-2,fh-2));legend.setResizeToContents(False)
   note=f"{crs.authid()} · escala 1:{round(m.scale()):,}".replace(',','.')
-  info=note+'\nAEs e pontos: dados fornecidos.\n'+('UCs federais: ICMBio.\n' if uc else '')+'Estados e biomas: IBGE, 2025.\nSentinel-2 L2A · RGB nativo 10 m.\nDatas: '+(date_label or 'não informadas')+'.\nCopernicus Sentinel / AWS Earth Search.'+detail_info+'\nPA: local planejado; não é UA instalada.\nElaboração: '+cfg['elaboracao']+'\n'+datetime.date.today().isoformat()+' · Monitora · Planejamento v1.0.0\nFontes e métodos: 02_relatorio.'
+  info=note+'\nAEs e pontos: dados fornecidos.\n'+('UCs federais: ICMBio.\n' if uc else '')+'Estados e biomas: IBGE, 2025.\nSentinel-2 L2A · RGB nativo 10 m.\nDatas: '+(date_label or 'não informadas')+'.\nCopernicus Sentinel / AWS Earth Search.'+detail_info+'\nPA: local planejado; não é UA instalada.\nElaboração: '+cfg['elaboracao']+'\n'+datetime.date.today().isoformat()+' · Monitora · Planejamento v1.0.1-rc1\nFontes e métodos: 02_relatorio.'
   label(layout,'Informações do mapa',ix+1,fy+1,iw-2,6,9,True)
   info=wrap_mm(info,QFont('Arial',8),iw-5)
   info_item=label(layout,info,ix+1.5,fy+8,iw-3,fh-9,8);info_item.setId(name+'_informacoes')

@@ -1,4 +1,16 @@
-# Homologação e publicação 1.0.0
+# Validação da candidata 1.0.1-rc1 — 02/10/2026
+
+Preparação dos pacotes conforme o script principal: verificação, instalação somente quando indisponíveis e carregamento. Inclui lpSolve; instalação por utils::install.packages e carregamento por base::library. Repositórios configurados são respeitados, com CRAN HTTPS quando indefinido. O carregamento somente de funções permanece sem instalação.
+
+Namespace explícito nas funções de pacotes e nas funções base suscetíveis a conflito ao carregar dependências espaciais. Configuração preservada; comparação de 106 funções confirmou lógica inalterada após normalizar namespaces e identificação da versão. Somente os preparadores de dependências foram substituídos; dois auxiliares foram adicionados.
+
+Treze suítes R aprovadas no Linux. Instalação real de pacote mínimo em repositório e biblioteca temporários, sem acesso à rede; 14 verificações de preparação também aprovadas no Windows. Carga dos 15 pacotes reais conferida nas duas plataformas. No Windows/R 4.6.0, RSQLite, jpeg e lpSolve apresentam avisos de compilação com R 4.6.1, sem impedir o carregamento; as instalações existentes foram preservadas. Manual HTML/PDF atualizado (16 páginas).
+
+Evidências: `validacao/testes_dependencias_v1.0.1-rc1.json`. Candidata local, sem nova publicação no GitHub, geração de pontos ou aquisição de imagens.
+
+---
+
+# Histórico: homologação e publicação 1.0.0
 
 A versão 1.0.0 publica a versão funcional 0.4.7, considerada homologada pelo responsável em 01/10/2026. Mudanças de publicação: nome da ferramenta e do arquivo R, ponto de entrada com alias compatível, identificação de versão, organização do repositório e documentação. Não houve redesenho amostral, troca de fontes, recálculo de pontos ou download de imagens nesta etapa.
 
