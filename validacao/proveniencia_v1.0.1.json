@@ -1,0 +1,10 @@
+{
+  "versao_publica": "1.0.1",
+  "repositorio": "https://github.com/danilovcorrea/Monitora-Planejamento-Amostral",
+  "candidata_homologada": "1.0.1-rc3",
+  "commit_candidata": "e5a8ebb2b8d2d11c0e51c7ad5b79835b9f669ac8",
+  "sha256_R_candidata": "06998e3b1cb84dd59127c5fcb9b501c082e77f010b2c5fb4a69235ada44a2ba1",
+  "sha256_R_publicado": "870af6ea1cda1692ae0cfb4393a1b3da101698d1641f44996d33ea2a46f55ab1",
+  "proveniencia_inicial": "proveniencia_v1.0.0.json",
+  "mudancas_promocao": "Identificação de versão e documentação; funções e configurações preservadas."
+}

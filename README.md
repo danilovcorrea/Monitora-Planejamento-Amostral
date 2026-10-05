@@ -1,8 +1,8 @@
 # Monitora Campestre Savânico - Alvo Global - Planejamento e Desenho Amostral, Cartografia e navegação em campo
 
-**Versão 1.0.1 · script R independente · Programa Monitora**
+**Versão 1.0.2 · script R independente · Programa Monitora**
 
-A versão 1.0.1 instala os pacotes ausentes e carrega as dependências automaticamente. Corrige as barras de progresso em consoles interativos e a criação do contexto de imagens quando os polígonos têm altitude, preservando as camadas originais e o cache.
+A versão 1.0.2 oferece compatibilidade com QGIS 3.44 e 4, verifica a cartografia antes dos downloads e explica os valores efetivamente usados e as variáveis a revisar. Reaproveita imagens, recortes e mosaicos; combina fontes Sentinel parciais e adquire somente lacunas autorizadas. Homologada localmente no RStudio pelo responsável pelo projeto.
 
 Ferramenta para planejar o desenho amostral a partir de Áreas Elegíveis, organizar dados espaciais, criar projetos editáveis no QGIS e projetos de navegação no QField, e exportar mapas, vetores, tabelas e relatórios. Inclui os perfis Campestre-Savânico, Ilha e personalizado, com seus critérios próprios.
 
@@ -49,7 +49,15 @@ Informe número **ou** percentual, nunca ambos. Exemplo: `list(n=40,percentual=N
 
 `auto` escolhe `montar` se encontrar grade, PAs, UAs, extremos ou transectos fornecidos. `montar` não cria pontos nem completa cotas. `planejar` rejeita essas camadas para impedir substituição acidental. Para adicionar UAs observadas a um planejamento gerado, faça uma montagem posterior com as camadas resultantes e as referências observadas.
 
+## Configuração efetiva e QGIS
+
+Com várias instalações QGIS, a seleção automática testa as versões da mais recente para a mais antiga. O teste inclui fontes, legendas, escala, localizadores, PDF georreferenciado, PNG e reabertura do layout, antes da aquisição de imagens. Informe `qgis_python` para fixar uma instalação; nesse caso ela não será substituída silenciosamente.
+
+`configuracao_efetiva.csv` mostra valor informado, valor utilizado e orientação. Para alterar o espaçamento: `grade_m` no perfil Campestre-Savânico; `parametros_protocolo$grade_m` no personalizado; `padrao_ilha$grade_m` no Ilha, salvo sobrescrita em `parametros_protocolo$grade_m`. Uma grade vazia informa área, envelope, origem, espaçamento e a variável a revisar. O script não altera a malha automaticamente.
+
 ## Imagens, confirmação e cache
+
+Preserve `cache_dir` e mantenha `renovar_imagens=FALSE`. Execuções anteriores na mesma saída e `caches_adicionais` ajudam a recuperar fontes compatíveis. Tiles, recortes e mosaicos íntegros são reaproveitados. Fontes Sentinel parciais são combinadas e as cenas recebidas ficam preservadas antes da montagem final; somente lacunas autorizadas são adquiridas. Blocos COG podem incluir pixels vizinhos. Os relatórios registram reutilização, faltantes e fontes rejeitadas.
 
 `baixar_imagem_detalhe=TRUE` ativa o planejamento de aquisição. `confirmar_download=NULL` pergunta antes de baixar detalhe; `confirmar_sentinel=NULL` pergunta separadamente antes de obter Sentinel. `FALSE` recusa novas imagens daquele tipo; `TRUE` representa autorização explícita. Sem interação, uma confirmação necessária e não informada bloqueia a etapa. A falta de Sentinel offline válido bloqueia o pacote; a recusa de detalhe permite o fundo mínimo com a lacuna registrada.
 

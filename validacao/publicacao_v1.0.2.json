@@ -1,0 +1,44 @@
+{
+  "versao": "1.0.2",
+  "data": "2026-10-05",
+  "candidata_homologada": "1.0.2-rc1",
+  "commit_candidata": "6765533",
+  "comparacao": {
+    "funcoes_preservadas": 120,
+    "MQ_CONFIG_preservada": true,
+    "MQ_PACOTES_preservados": true,
+    "recursos_preservados": true
+  },
+  "sha256_R_candidata": "0c1f3f30ff00ec4d8a9e6f8c5f192a910b31ac47bf27fa5fa30bbf56a73f407c",
+  "sha256_R_publicado": "6d3d07e00ce3304de1db83a1bf57aaa2821bcc069588a587205d49fc9a3875c2",
+  "homologacao_RStudio": {
+    "status": "CONFIRMADA_PELO_USUARIO",
+    "data": "2026-10-05",
+    "declaracao": "candidata homologada e testada localmente no RStudio. Siga para a publicação",
+    "origem": "Mensagem direta do usuário; não é ensaio automatizado da interface."
+  },
+  "suites_R_aprovadas": 16,
+  "novos_casos": 11,
+  "evidencia_candidata": "homologacao_v1.0.2-rc1.json",
+  "evidencia_suites": "testes_v1.0.2-rc1.json",
+  "QGIS": [
+    "3.44.9",
+    "4.2.3"
+  ],
+  "reabertura_cruzada": "PASS",
+  "Censipam": {
+    "grade": 31,
+    "prioritarios": 7,
+    "alternativos": 14,
+    "tiles_cache": 157,
+    "imagens_baixadas": 0,
+    "pdf_por_rodada": 4,
+    "png_por_rodada": 4
+  },
+  "manual": {
+    "pdf_paginas": 16,
+    "versao": "1.0.2",
+    "HTML_PDF_mesma_versao": true
+  },
+  "novo_teste_fisico_celular": false
+}
