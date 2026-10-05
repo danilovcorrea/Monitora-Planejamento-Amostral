@@ -21,13 +21,37 @@ def check_pdf(path,crs):
  gt=ds.GetGeoTransform(can_return_null=True);assert gt and gt!=(0,1,0,0,0,1),'PDF sem transformação'
  result={'crs':sr.GetAuthorityCode(None),'geotransform':gt,'largura_px_72dpi':ds.RasterXSize,'altura_px_72dpi':ds.RasterYSize};ds=None;return result
 
+def font_for(size=9,bold=False):
+ f=QFont('Arial');f.setPointSizeF(size);f.setBold(bold);return f
+
+def legend_font(legend,component,font):
+ fmt=QgsTextFormat();fmt.setFont(font);fmt.setSize(font.pointSizeF())
+ legend.rstyle(component).setTextFormat(fmt)
+
 def probe(output):
  assert gdal.GetDriverByName('PDF'), 'GDAL sem PDF'
  project=QgsProject();project.setCrs(QgsCoordinateReferenceSystem(31983));layout=QgsPrintLayout(project);layout.initializeDefaults()
- m=QgsLayoutItemMap(layout);layout.addLayoutItem(m);m.attemptMove(QgsLayoutPoint(20,20));m.attemptResize(QgsLayoutSize(100,100));m.setCrs(project.crs());m.zoomToExtent(QgsRectangle(600000,8000000,601000,8001000));layout.setReferenceMap(m)
+ v=QgsVectorLayer('Point?crs=EPSG:31983','Pontos Amostrais prioritários','memory')
+ ft=QgsFeature();ft.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(600500,8000500)));v.dataProvider().addFeatures([ft]);v.updateExtents();project.addMapLayer(v)
+ m=QgsLayoutItemMap(layout);layout.addLayoutItem(m);m.attemptMove(QgsLayoutPoint(20,20));m.attemptResize(QgsLayoutSize(100,100));m.setCrs(project.crs());m.setLayers([v]);m.zoomToExtent(QgsRectangle(600000,8000000,601000,8001000));layout.setReferenceMap(m)
+ gr=m.grid();gr.setEnabled(True);gr.setCrs(QgsCoordinateReferenceSystem('EPSG:4326'));gr.setIntervalX(.002);gr.setIntervalY(.002);gr.setStyle(QgsLayoutItemMapGrid.FrameAnnotationsOnly);gr.setAnnotationEnabled(True);gr.setAnnotationFormat(QgsLayoutItemMapGrid.DecimalWithSuffix)
+ legend=QgsLayoutItemLegend(layout);legend.setLinkedMap(m);legend.setTitle('Legenda');legend.setAutoUpdateModel(False);legend.model().rootGroup().clear();legend.model().rootGroup().addLayer(v)
+ legend_font(legend,QgsLegendStyle.Title,font_for(10,True));legend_font(legend,QgsLegendStyle.SymbolLabel,font_for())
+ layout.addLayoutItem(legend);legend.attemptMove(QgsLayoutPoint(130,20))
+ label(layout,'Áreas Elegíveis — ç ã',130,60,100,15,10,True)
+ scale=QgsLayoutItemScaleBar(layout);scale.setLinkedMap(m);scale.applyDefaultSize();layout.addLayoutItem(scale);scale.attemptMove(QgsLayoutPoint(20,125))
+ for i in range(2):
+  loc=QgsLayoutItemMap(layout);layout.addLayoutItem(loc);loc.setLayers([v]);loc.setCrs(project.crs());loc.attemptMove(QgsLayoutPoint(130+i*50,100));loc.attemptResize(QgsLayoutSize(45,40));loc.zoomToExtent(m.extent())
  f=Path(output).with_suffix('.pdf');settings=QgsLayoutExporter.PdfExportSettings();settings.appendGeoreference=True;settings.dpi=96
  assert QgsLayoutExporter(layout).exportToPdf(str(f),settings)==QgsLayoutExporter.Success,'Exportação PDF indisponível'
- evidence=check_pdf(f,project.crs());f.unlink();dump({'status':'PASS','QGIS':Qgis.QGIS_VERSION,'GDAL':gdal.VersionInfo(),'PDF':evidence},output)
+ evidence=check_pdf(f,project.crs())
+ png=Path(output).with_suffix('.png');im=QgsLayoutExporter.ImageExportSettings();im.dpi=96
+ assert QgsLayoutExporter(layout).exportToImage(str(png),im)==QgsLayoutExporter.Success,'Exportação PNG indisponível'
+ assert not QImage(str(png)).isNull(),'PNG ilegível'
+ qgz=Path(output).with_suffix('.qgz');project.layoutManager().addLayout(layout);assert project.write(str(qgz))
+ other=QgsProject();assert other.read(str(qgz)) and len(other.layoutManager().layouts())==1,'Layout não reabre'
+ f.unlink();png.unlink();qgz.unlink()
+ dump({'status':'PASS','QGIS':Qgis.QGIS_VERSION,'GDAL':gdal.VersionInfo(),'PDF':evidence,'verificacoes':['fonte_negrito','acentos','legenda','escala','grade_coordenadas','dois_localizadores','PNG','PDF_georreferenciado','reabertura_layout']},output)
 
 def label(layout,text,x,y,w,h,size=9,bold=False,color='#174b3b'):
  item=QgsLayoutItemLabel(layout);item.setText(text);font=QFont('Arial');font.setPointSizeF(size);font.setBold(bold);item.setFont(font);item.setFontColor(QColor(color));layout.addLayoutItem(item);item.attemptMove(QgsLayoutPoint(x,y));item.attemptResize(QgsLayoutSize(w,h));return item
@@ -286,9 +310,9 @@ def build(config_file):
     QgsLegendRenderer.setNodeLegendStyle(node,QgsLegendStyle.Hidden)
     for j,uc_name in enumerate(uc_names):QgsMapLayerLegendUtils.setLegendNodeUserLabel(node,j,wrap_mm(uc_name,QFont('Arial',9),lw-13))
     legend.model().refreshLayerLegend(node)
-  legend.setStyleFont(QgsLegendStyle.Title,QFont('Arial',10,QFont.Bold));legend.setStyleFont(QgsLegendStyle.SymbolLabel,QFont('Arial',9));legend.setStyleFont(QgsLegendStyle.Subgroup,QFont('Arial',9));layout.addLayoutItem(legend);legend.attemptMove(QgsLayoutPoint(lx+1,fy+1));legend.attemptResize(QgsLayoutSize(lw-2,fh-2));legend.setResizeToContents(False)
+  legend_font(legend,QgsLegendStyle.Title,font_for(10,True));legend_font(legend,QgsLegendStyle.SymbolLabel,font_for());legend_font(legend,QgsLegendStyle.Subgroup,font_for());layout.addLayoutItem(legend);legend.attemptMove(QgsLayoutPoint(lx+1,fy+1));legend.attemptResize(QgsLayoutSize(lw-2,fh-2));legend.setResizeToContents(False)
   note=f"{crs.authid()} · escala 1:{round(m.scale()):,}".replace(',','.')
-  info=note+'\nAEs e pontos: dados fornecidos.\n'+('UCs federais: ICMBio.\n' if uc else '')+'Estados e biomas: IBGE, 2025.\nSentinel-2 L2A · RGB nativo 10 m.\nDatas: '+(date_label or 'não informadas')+'.\nCopernicus Sentinel / AWS Earth Search.'+detail_info+'\nPA: local planejado; não é UA instalada.\nElaboração: '+cfg['elaboracao']+'\n'+datetime.date.today().isoformat()+' · Monitora · Planejamento v1.0.1\nFontes e métodos: 02_relatorio.'
+  info=note+'\nAEs e pontos: dados fornecidos.\n'+('UCs federais: ICMBio.\n' if uc else '')+'Estados e biomas: IBGE, 2025.\nSentinel-2 L2A · RGB nativo 10 m.\nDatas: '+(date_label or 'não informadas')+'.\nCopernicus Sentinel / AWS Earth Search.'+detail_info+'\nPA: local planejado; não é UA instalada.\nElaboração: '+cfg['elaboracao']+'\n'+datetime.date.today().isoformat()+' · Monitora · Planejamento v1.0.2-rc1\nFontes e métodos: 02_relatorio.'
   label(layout,'Informações do mapa',ix+1,fy+1,iw-2,6,9,True)
   info=wrap_mm(info,QFont('Arial',8),iw-5)
   info_item=label(layout,info,ix+1.5,fy+8,iw-3,fh-9,8);info_item.setId(name+'_informacoes')

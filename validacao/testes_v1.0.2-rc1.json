@@ -1,0 +1,98 @@
+[
+  {
+    "teste": "tests/test_adaptive.R",
+    "codigo": 0,
+    "segundos": 1.9,
+    "log": "/tmp/monitora_v102_tests/test_adaptive.log"
+  },
+  {
+    "teste": "tests/test_adaptive_integration.R",
+    "codigo": 0,
+    "segundos": 15.8,
+    "log": "/tmp/monitora_v102_tests/test_adaptive_integration.log"
+  },
+  {
+    "teste": "tests/test_core.R",
+    "codigo": 0,
+    "segundos": 10.1,
+    "log": "/tmp/monitora_v102_tests/test_core.log"
+  },
+  {
+    "teste": "tests/test_dependencies.R",
+    "codigo": 0,
+    "segundos": 1.3,
+    "log": "/tmp/monitora_v102_tests/test_dependencies.log"
+  },
+  {
+    "teste": "tests/test_design.R",
+    "codigo": 0,
+    "segundos": 1.7,
+    "log": "/tmp/monitora_v102_tests/test_design.log"
+  },
+  {
+    "teste": "tests/test_design_integration.R",
+    "codigo": 0,
+    "segundos": 21.2,
+    "log": "/tmp/monitora_v102_tests/test_design_integration.log"
+  },
+  {
+    "teste": "tests/test_flexible.R",
+    "codigo": 0,
+    "segundos": 0.7,
+    "log": "/tmp/monitora_v102_tests/test_flexible.log"
+  },
+  {
+    "teste": "tests/test_flexible_integration.R",
+    "codigo": 0,
+    "segundos": 13.5,
+    "log": "/tmp/monitora_v102_tests/test_flexible_integration.log"
+  },
+  {
+    "teste": "tests/test_image_dimensions.R",
+    "codigo": 0,
+    "segundos": 12.2,
+    "log": "/tmp/monitora_v102_tests/test_image_dimensions.log"
+  },
+  {
+    "teste": "tests/test_imagery.R",
+    "codigo": 0,
+    "segundos": 7.5,
+    "log": "/tmp/monitora_v102_tests/test_imagery.log"
+  },
+  {
+    "teste": "tests/test_island.R",
+    "codigo": 0,
+    "segundos": 1.0,
+    "log": "/tmp/monitora_v102_tests/test_island.log"
+  },
+  {
+    "teste": "tests/test_progress.R",
+    "codigo": 0,
+    "segundos": 0.3,
+    "log": "/tmp/monitora_v102_tests/test_progress.log"
+  },
+  {
+    "teste": "tests/test_resume_guidance.R",
+    "codigo": 0,
+    "segundos": 3.7,
+    "log": "/tmp/monitora_v102_tests/test_resume_guidance.log"
+  },
+  {
+    "teste": "tests/test_revision.R",
+    "codigo": 0,
+    "segundos": 10.4,
+    "log": "/tmp/monitora_v102_tests/test_revision.log"
+  },
+  {
+    "teste": "tests/test_roads.R",
+    "codigo": 0,
+    "segundos": 2.6,
+    "log": "/tmp/monitora_v102_tests/test_roads.log"
+  },
+  {
+    "teste": "tests/test_sentinel_mosaic.R",
+    "codigo": 0,
+    "segundos": 3.3,
+    "log": "/tmp/monitora_v102_tests/test_sentinel_mosaic.log"
+  }
+]

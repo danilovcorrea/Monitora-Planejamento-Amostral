@@ -1,3 +1,16 @@
+## Candidata 1.0.2-rc1 — 05/10/2026
+
+Código e produtos validados no R 4.6.0 Windows, com QGIS 3.44.9 e 4.2.3;
+16 suítes R aprovadas (11 novos casos de orientação, seleção QGIS e retomada).
+Censipam personalizado 100 m: 31 vértices, 7 prioritários, 14 alternativos;
+157 tiles em cache, zero downloads de imagens nas rodadas finais.
+Reabertura cruzada QGIS/QField aprovada; CSVs idênticos.
+Manual HTML/PDF atualizado. Evidência: validacao/homologacao_v1.0.2-rc1.json.
+
+**Pendente:** execução pela interface do RStudio. O inicializador de computer-use
+rejeitou o caminho WSL deste chat, inclusive após reset. Testes realizados no R
+do Windows não substituem essa solicitação. Candidata não publicada.
+
 # Publicação 1.0.1 — 02/10/2026
 
 Promove a candidata 1.0.1-rc3 após os testes e a execução real abaixo. Na promoção, apenas identificação da versão e documentação foram atualizadas; as funções e configurações são comparadas à candidata antes da publicação. Evidências consolidadas em `validacao/publicacao_v1.0.1.json`.

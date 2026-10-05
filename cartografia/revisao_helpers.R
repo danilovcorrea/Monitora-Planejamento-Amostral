@@ -95,7 +95,7 @@ mq_entry <- function(root,c,mode,status) {
   e<-monitora_qfield_xml
   links<-c('01_qfield/pacote_qfield.zip'='Projeto para QField','01_qfield/projeto.qgs'='Projeto de navegação no QGIS','02_relatorio/relatorio_execucao.html'='Relatório de execução','03_vetores'='Vetores GPKG, KML e KMZ','04_csv'='Tabelas CSV')
   if(c$gerar_cartografia)links<-c(links,'05_qgis/projeto_edicao.qgz'='Projeto QGIS editável e quatro layouts','mapas_pdf'='Quatro mapas PDF georreferenciados','mapas_png'='Quatro mapas PNG')
-  writeLines(c('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Monitora — entrega</title><style>body{font:18px/1.6 sans-serif;max-width:900px;margin:40px auto;padding:20px;color:#174b3b}</style>',paste0('<h1>',e(c$projeto),'</h1><p>v1.0.1 · ',e(mode),' · ',e(status),'</p><ul>'),paste0('<li><a href="',names(links),'">',links,'</a></li>'),'</ul><p>Edite os vetores em 05_qgis. Essas alterações não modificam o pacote QField, os CSV/KML ou mapas já exportados. Reexporte os layouts após editar. Preserve a pasta completa para manter as imagens compartilhadas e os caminhos relativos.</p></html>'),file.path(root,'ABRA_AQUI.html'))
+  writeLines(c('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Monitora — entrega</title><style>body{font:18px/1.6 sans-serif;max-width:900px;margin:40px auto;padding:20px;color:#174b3b}</style>',paste0('<h1>',e(c$projeto),'</h1><p>v1.0.2-rc1 · ',e(mode),' · ',e(status),'</p><ul>'),paste0('<li><a href="',names(links),'">',links,'</a></li>'),'</ul><p>Edite os vetores em 05_qgis. Essas alterações não modificam o pacote QField, os CSV/KML ou mapas já exportados. Reexporte os layouts após editar. Preserve a pasta completa para manter as imagens compartilhadas e os caminhos relativos.</p></html>'),file.path(root,'ABRA_AQUI.html'))
 }
 # Composição source-over: a primeira fonte local prevalece; transparências são preenchidas.
 mq_alpha_over <- function(front,back) {
@@ -110,7 +110,7 @@ mq_mosaic_mb <- function(paths,c,report,mask=NULL) {
   on.exit(for(v in sources)if(DBI::dbIsValid(v$db))DBI::dbDisconnect(v$db),add=TRUE)
   provenance<-lapply(seq_along(paths),function(i)list(prioridade=i,arquivo=paths[i],sha256=hashes[i],metadados=sources[[i]]$meta))
   mq_json(list(regra='Fonte local primeiro; complemento somente via alpha; fontes ordenadas por caminho relativo. Pixel exportado não comprova resolução nativa.',fontes=provenance,cache=target),file.path(report,'mosaico_fontes.json'))
-  if(mq_verified(target))return(target)
+  saved<-mq_cached_product(c,'mosaicos',basename(target));if(!is.null(saved))return(saved)
   if(file.exists(target))mq_stop('Mosaico em cache sem integridade: ',target)
   sizes<-vapply(sources,function(v){b<-DBI::dbGetQuery(v$db,'SELECT tile_data FROM tiles LIMIT 1')$tile_data[[1]];a<-mq_rgba(b);if(dim(a)[1]!=dim(a)[2]||!dim(a)[1]%in%c(256,512))mq_stop('Tile deve ser quadrado de 256 ou 512 pixels.');dim(a)[1]},integer(1))
   levels<-lapply(sources,function(v)base::sort(base::unique(v$d$z)));same<-all(sizes==256)&&length(levels[[1]])==1&&all(vapply(levels,identical,logical(1),levels[[1]]))
@@ -192,17 +192,38 @@ mq_qgis_call <- function(runtime,script,mode,arg,log) {
 }
 mq_qgis_prepare <- function(c,root,scratch) {
   for(n in names(MQ_RECURSOS))writeBin(jsonlite::base64_dec(MQ_RECURSOS[[n]]),file.path(scratch,n))
-  python<-c$qgis_python
-  windows<-.Platform$OS.type=='windows'
-  if(is.null(python)) {
-    search<-if(windows)'C:/Program Files/QGIS*/bin/python-qgis*.bat'else '/mnt/c/Program Files/QGIS*/bin/python-qgis*.bat'
-    candidates<-base::sort(Sys.glob(search),decreasing=TRUE)
-    if(length(candidates)){python<-candidates[1];windows<-TRUE}else python<-Sys.which('python3')
-  }else windows<-grepl('\\.bat$',python,ignore.case=TRUE)
-  if(!length(python)||!nzchar(python))mq_stop('QGIS/PyQGIS não localizado. Instale QGIS ou informe qgis_python antes de gerar a cartografia.')
-  runtime<-list(python=python,windows=windows)
-  mq_qgis_call(runtime,file.path(scratch,'cartografia_qgis.py'),'probe',file.path(root,'02_relatorio','qgis_capacidades.json'),file.path(root,'02_relatorio','qgis_probe.log'))
-  runtime
+  explicit<-!is.null(c$qgis_python)
+  candidates<-c$qgis_python
+  if(!explicit) {
+    search<-if(.Platform$OS.type=='windows')'C:/Program Files/QGIS*/bin/python-qgis*.bat'else '/mnt/c/Program Files/QGIS*/bin/python-qgis*.bat'
+    candidates<-Sys.glob(search)
+    if(length(candidates)) {
+      ver<-sub('.*QGIS ([0-9.]+).*','\\1',candidates)
+      valid<-grepl('^[0-9]+(\\.[0-9]+)+$',ver)
+      candidates<-c(candidates[valid][order(numeric_version(ver[valid]),decreasing=TRUE)],base::sort(candidates[!valid]))
+    }else candidates<-Sys.which('python3')
+  }
+  candidates<-base::unique(candidates[nzchar(candidates)])
+  if(!length(candidates))mq_stop('QGIS/PyQGIS não localizado. Instale QGIS 3.44 ou 4 e configure qgis_python com o launcher da instalação.')
+  attempts<-list()
+  for(i in seq_along(candidates)) {
+    runtime<-list(python=candidates[i],windows=grepl('\\.bat$',candidates[i],ignore.case=TRUE))
+    message('QGIS: verificando ',candidates[i],' (legenda, fontes, localizadores, PDF/PNG e reabertura; antes dos downloads).')
+    output<-file.path(root,'02_relatorio',paste0('qgis_teste_',i,'.json'));log<-file.path(root,'02_relatorio',paste0('qgis_teste_',i,'.log'))
+    err<-tryCatch({mq_qgis_call(runtime,file.path(scratch,'cartografia_qgis.py'),'probe',output,log);NULL},error=function(e)conditionMessage(e))
+    cap<-if(is.null(err))tryCatch(jsonlite::read_json(output),error=function(e)NULL)else NULL
+    good<-!is.null(cap)&&base::identical(cap$status,'PASS')
+    attempts[[i]]<-list(python=candidates[i],aprovado=good,motivo=if(good)'Teste completo aprovado'else if(is.null(err))'Resposta do teste inválida'else err,log=log)
+    mq_json(attempts,file.path(root,'02_relatorio','qgis_instalacoes.json'))
+    if(good) {
+      file.copy(output,file.path(root,'02_relatorio','qgis_capacidades.json'),overwrite=TRUE);file.copy(log,file.path(root,'02_relatorio','qgis_probe.log'),overwrite=TRUE)
+      message('QGIS selecionado: ',cap$QGIS,' | ',candidates[i],'. Para escolher outra instalação, altere qgis_python.')
+      return(runtime)
+    }
+    message('QGIS incompatível/indisponível: ',candidates[i],'. Motivo: ',attempts[[i]]$motivo)
+  }
+  mq_stop(if(explicit)'A instalação indicada em qgis_python falhou; nenhuma substituição automática.'else 'Nenhuma instalação QGIS passou no teste inicial.',
+          ' Confira qgis_instalacoes.json e os logs. Corrija qgis_python ou a instalação; nenhum download de imagem iniciado.')
 }
 mq_locator_base <- function(c,root) {
   # Bases oficiais de contexto; primeira obtenção ~27 MiB, reutilizadas com SHA256.

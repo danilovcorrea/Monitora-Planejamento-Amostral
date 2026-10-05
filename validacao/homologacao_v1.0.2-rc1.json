@@ -1,0 +1,37 @@
+{
+  "versao": "1.0.2-rc1",
+  "data": "2026-10-05",
+  "status": "CODIGO_E_PRODUTOS_VALIDADOS; INTERFACE_RSTUDIO_PENDENTE",
+  "script_sha256": "0c1f3f30ff00ec4d8a9e6f8c5f192a910b31ac47bf27fa5fa30bbf56a73f407c",
+  "script_censipam_sha256": "b632d639b2a08ff52544ead5727a4a96fc498a3cf18ac05c869f37b0f92b9283",
+  "entrada_sha256": "0616048c6ef591f56a621ca67b322a5b873455debf0560d3ec8b799feeb0ccec",
+  "suites_R": 16,
+  "novos_casos": 11,
+  "grade": 31,
+  "prioritarios": 7,
+  "alternativos": 14,
+  "comparacao_csv_entre_qgis": "identicos",
+  "rodadas": [
+    {
+      "qgis": 3,
+      "pasta": "C:/Monitora_QField_homologacao_20261001/CANDIDATA_v1.0.2-rc1/operacao_usuario/saida/censipam_100m_20261005_123226_4fb38f",
+      "segundos": 26.75,
+      "versao": "1.0.2-rc1",
+      "downloads_detalhe": 0,
+      "sentinel": "reutilizado"
+    },
+    {
+      "qgis": 4,
+      "pasta": "C:/Monitora_QField_homologacao_20261001/CANDIDATA_v1.0.2-rc1/operacao_usuario/saida/censipam_100m_20261005_123156_aadadd",
+      "segundos": 30.32,
+      "versao": "1.0.2-rc1",
+      "downloads_detalhe": 0,
+      "sentinel": "reutilizado"
+    }
+  ],
+  "rstudio": {
+    "executado_na_interface": false,
+    "motivo": "Automação computer-use/node_repl falhou antes de inicializar: sandboxCwd is not a local file URI: file:///home/dlinux/Monitora_Dev_20260712/Monitora-Campestre-Savanico. Reset e nova tentativa sem sucesso. Testes foram executados no R 4.6.0 do Windows, não na interface RStudio."
+  },
+  "publicado": false
+}
