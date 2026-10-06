@@ -1,4 +1,5 @@
-options(monitora.qfield.somente_funcoes=TRUE);source('monitora_planejamento_amostral.R',encoding='UTF-8');suppressPackageStartupMessages(library(sf))
+options(monitora.qfield.somente_funcoes=TRUE);source('monitora_planejamento_amostral.R',encoding='UTF-8');MQ_CONFIG<-mq_legacy_defaults() # Regressão da interface pública 1.0.2
+suppressPackageStartupMessages(library(sf))
 r<-tempfile();dir.create(r);n<-0;ok<-function(name,v){stopifnot(isTRUE(v));n<<-n+1;cat('PASS',name,'\n')};fails<-function(x)inherits(try(force(x),silent=TRUE),'try-error')
 c<-MQ_CONFIG;c$perfil<-'ilha';ci<-mq_protocol(c);mq_validate_config(ci)
 ok('ilha_padrao_25_30',ci$transecto_m==25&&identical(ci$grade_m,c(30,30)))

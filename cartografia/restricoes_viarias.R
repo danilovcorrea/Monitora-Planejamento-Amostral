@@ -37,24 +37,26 @@ mq_segments <- function(points,c) {
   stats::setNames(ans,c$direcoes_campo)
 }
 mq_road_sources <- function(layers,c,report) {
-  audit<-list();targets<-list()
-  for(role in c('estradas_pavimentadas','estradas_terra','trilhas_preexistentes')) {
-    flag<-c[[paste0('usar_',role)]];src<-Filter(function(l)l$papel==role,layers);count<-sum(vapply(src,function(l)base::nrow(l$x),integer(1)))
-    if(base::isTRUE(flag)&&!count)mq_stop('Camada exigida ausente ou vazia: ',role)
-    active<-count>0&&!base::identical(flag,FALSE)&&role%in%names(c$distancias_viarias_m)
+  audit<-list();targets<-list();missing<-character();distances<-c$distancias_viarias_m
+  if(isTRUE(c$.config_v2))distances<-c(distances,formacao_florestal=c$distancia_floresta_m,transectos=c$distancia_min_m)
+  for(role in if(isTRUE(c$.config_v2))names(distances)else c('estradas_pavimentadas','estradas_terra','trilhas_preexistentes')) {
+    flag<-c[[if(role=='transectos')'usar_uas_existentes'else paste0('usar_',role)]];src<-Filter(function(l)l$papel==role,layers);count<-sum(vapply(src,function(l)base::nrow(l$x),integer(1)))
+    if(base::isTRUE(flag)&&!count){if(isTRUE(c$.config_v2))missing<-c(missing,role)else mq_stop('Camada exigida ausente ou vazia: ',role)}
+    active<-count>0&&!base::identical(flag,FALSE)&&role%in%names(distances)
     if(active) {
       items<-lapply(src,function(l){x<-l$x;line<-as.character(sf::st_geometry_type(x))%in%c('LINESTRING','MULTILINESTRING');width<-rep(0,base::nrow(x));
-        if('largura_m'%in%names(x)){w<-suppressWarnings(as.numeric(x$largura_m));if(any(line&(!is.finite(w)|w<0)))mq_stop('largura_m inválida em ',role);width[line]<-w[line]}
+        if(role%in%c('estradas_pavimentadas','estradas_terra','trilhas_preexistentes')&&'largura_m'%in%names(x)){w<-suppressWarnings(as.numeric(x$largura_m));if(any(line&(!is.finite(w)|w<0)))mq_stop('largura_m inválida em ',role);width[line]<-w[line]}
         # Limiar por feição: distância ao eixo acrescida de metade da largura, quando declarada.
-        sf::st_sf(limite=c$distancias_viarias_m[[role]]+width/2,geometry=sf::st_geometry(x))})
+        sf::st_sf(limite=distances[[role]]+width/2,geometry=sf::st_geometry(x))})
       targets[[role]]<-do.call(rbind,items)
     }
-    audit[[role]]<-list(configuracao=if(is.null(flag))'auto'else flag,feicoes=count,aplicada=active,distancia_m=if(role%in%names(c$distancias_viarias_m))c$distancias_viarias_m[[role]]else NULL,fontes=vapply(src, function(l)if(is.null(l$fonte))l$papel else l$fonte,character(1)),nota=if(!count)'Não fornecida/vazia: ausência de conflito não comprovada.'else if(c$perfil=='ilha')'Referência visual: procedimento campestre não se aplica ao perfil Ilha.'else if(base::identical(flag,FALSE))'Desabilitada explicitamente; somente referência visual.'else 'Polígonos: borda; linhas: eixo, com largura_m/2 quando informada. Sem largura, limitação de distância ao eixo. Cobertura fora das AEs deve ser fornecida.')
+    audit[[role]]<-list(configuracao=if(is.null(flag))'auto'else flag,feicoes=count,aplicada=active,distancia_m=if(role%in%names(distances))distances[[role]]else NULL,fontes=vapply(src, function(l)if(is.null(l$fonte))l$papel else l$fonte,character(1)),nota=if(!count)'Não fornecida/vazia: ausência de conflito não comprovada.'else if(!isTRUE(c$.config_v2)&&c$perfil=='ilha')'Referência visual: procedimento campestre não se aplica ao perfil Ilha.'else if(base::identical(flag,FALSE))'Desabilitada explicitamente; somente referência visual.'else 'Polígonos: borda; linhas: eixo, com largura_m/2 quando informada. Sem largura, limitação de distância ao eixo. Cobertura fora das AEs deve ser fornecida.')
     message('Vias — ',role,': ',count,' feições; ',if(active)'restrição aplicada'else 'restrição não aplicada')
   }
   legacy<-Filter(function(l)l$papel%in%c('rodovias','estradas','trilhas'),layers)
   if(length(legacy))message('Vias com nomes legados: somente referência. Declare papel explícito em camadas_qfield.csv para aplicar restrições.')
   mq_json(list(perfil=c$perfil,camadas=audit,legadas_sem_classificacao=vapply(legacy,`[[`,character(1),'nome')),file.path(report,'restricoes_viarias.json'))
+  if(length(missing))mq_decide(c,report,'fontes_ausentes',paste0('Sem fontes para: ',paste(missing,collapse=', '),'. Prosseguir deixará esses afastamentos SEM AVALIAÇÃO. Forneça as camadas padronizadas ou desligue o controle usar_* correspondente; para transectos, usar_uas_existentes.'))
   targets
 }
 mq_road_screen <- function(g,targets,ae,c,report,tag='grade') {

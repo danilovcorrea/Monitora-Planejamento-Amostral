@@ -1,5 +1,5 @@
 options(monitora.qfield.somente_funcoes=TRUE)
-source('monitora_planejamento_amostral.R',encoding='UTF-8')
+source('monitora_planejamento_amostral.R',encoding='UTF-8');MQ_CONFIG<-mq_legacy_defaults() # Regressão da interface pública 1.0.2
 suppressPackageStartupMessages(library(sf))
 checks<-character();ok<-function(n,v){if(!isTRUE(v))stop(n);checks<<-c(checks,n);cat('PASS ',n,'\n',sep='')};fails<-function(x)inherits(try(force(x),silent=TRUE),'try-error')
 report<-tempfile();dir.create(report)

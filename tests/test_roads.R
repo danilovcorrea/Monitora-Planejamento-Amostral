@@ -1,4 +1,5 @@
-options(monitora.qfield.somente_funcoes=TRUE);source('monitora_planejamento_amostral.R',encoding='UTF-8');suppressPackageStartupMessages(library(sf))
+options(monitora.qfield.somente_funcoes=TRUE);source('monitora_planejamento_amostral.R',encoding='UTF-8');MQ_CONFIG<-mq_legacy_defaults() # Regressão da interface pública 1.0.2
+suppressPackageStartupMessages(library(sf))
 n<-0;ok<-function(name,v){stopifnot(isTRUE(v));n<<-n+1;cat('PASS',name,'\n')};fails<-function(x)inherits(try(force(x),silent=TRUE),'try-error')
 r<-tempfile();dir.create(r);cr<-31983
 poly<-function(x1,y1,x2,y2)st_polygon(list(matrix(c(x1,y1,x2,y1,x2,y2,x1,y2,x1,y1),ncol=2,byrow=TRUE)))

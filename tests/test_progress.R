@@ -1,6 +1,6 @@
 # Força o backend interativo mesmo no Rscript/CI; não depende de terminal físico.
 options(monitora.qfield.somente_funcoes=TRUE)
-source('monitora_planejamento_amostral.R',encoding='UTF-8')
+source('monitora_planejamento_amostral.R',encoding='UTF-8');MQ_CONFIG<-mq_legacy_defaults() # Regressão da interface pública 1.0.2
 checks<-character();ok<-function(n,v){stopifnot(isTRUE(v));checks<<-c(checks,n);cat('PASS ',n,'\n',sep='')}
 run<-function(){
  old<-options(cli.dynamic=TRUE,cli.progress_show_after=0,cli.progress_clear=FALSE);on.exit(options(old),add=TRUE)

@@ -1,6 +1,6 @@
 # Diagnósticos sem modificar configuração nem desenho.
 mq_grade_variable <- function(c) {
-  if(c$perfil=='campestre_savanico')return('grade_m')
+  if(isTRUE(c$.config_v2)||c$perfil=='campestre_savanico')return('grade_m')
   if(c$perfil=='personalizado'||!is.null(c$parametros_protocolo$grade_m))return('parametros_protocolo$grade_m')
   'padrao_ilha$grade_m'
 }
@@ -8,16 +8,16 @@ mq_config_summary <- function(original,c,report,mode=c$modo) {
   val<-function(x)if(is.null(x))'NULL'else if(is.list(x))as.character(jsonlite::toJSON(x,auto_unbox=TRUE,null='null'))else paste(as.character(unlist(x)),collapse=', ')
   rows<-list()
   add<-function(variable,requested,effective,action)rows[[length(rows)+1L]]<<-data.frame(variavel=variable,informado=val(requested),efetivo=val(effective),orientacao=action)
-  add('perfil',original$perfil,c$perfil,'Define regras metodológicas; não alterar somente para contornar exclusões.')
-  add('modo',original$modo,mode,'auto escolhe montar com pontos/UAs fornecidos; planejar cria a grade.')
+  add('perfil',original$perfil,if(isTRUE(c$.config_v2))c$perfil_escolhido else c$perfil,'Fornece padrões; valores explícitos do usuário prevalecem.')
+  add(if(isTRUE(c$.config_v2))'operacao'else 'modo',if(isTRUE(c$.config_v2))original$operacao else original$modo,if(isTRUE(c$.config_v2))c$operacao else mode,'auto escolhe montar com pontos/UAs fornecidos; planejar cria a grade.')
   add('grade_m',original$grade_m,c$grade_m,paste('Espaçamento efetivo controlado por',mq_grade_variable(c),'; alterar manualmente para um novo desenho.'))
-  add('transecto_m',original$transecto_m,c$transecto_m,'Campestre usa transecto_m; demais perfis usam os parâmetros do protocolo.')
+  add('transecto_m',original$transecto_m,c$transecto_m,if(isTRUE(c$.config_v2))'transecto_m em qualquer perfil; NULL herda.'else 'Campestre usa transecto_m; demais perfis usam os parâmetros do protocolo.')
   add('estratificar_vegetacao',original$estratificar_vegetacao,c$estratificar_vegetacao,paste('Filtro de elegibilidade vegetacional:',if(mq_vegetation_active(c))'ATIVO, mesmo sem balanceamento de cotas.'else 'DESATIVADO; MapBiomas é informativo.'))
   add('estratificar_por_atributos',original$estratificar_por_atributos,c$estratificar_por_atributos,'Habilite e configure cotas_atributos para margens cumulativas por atributo.')
   for(n in c('prioritarios','alternativos'))add(n,original[[n]],c[[n]],paste('Use',paste0(n,' = list(n=..., percentual=NULL)'),'OU percentual; o resultado depende dos candidatos disponíveis.'))
   add('politica_insuficiencia',original$politica_insuficiencia,c$politica_insuficiencia,'usar_disponiveis registra déficits; bloquear exige metas. Não cria candidatos ausentes.')
   add('distancia_min_m',original$distancia_min_m,c$distancia_min_m,'Não aplicada automaticamente nos perfis Ilha/personalizado; viabilidade real exige conferência em campo.')
-  for(n in c('usar_estradas_pavimentadas','usar_estradas_terra','usar_trilhas_preexistentes'))add(n,original[[n]],c[[n]],'NULL detecta camada; TRUE exige camada; FALSE somente exibe. Distâncias efetivas em restricoes_viarias.json.')
+  for(n in c('usar_estradas_pavimentadas','usar_estradas_terra','usar_trilhas_preexistentes'))add(n,original[[n]],c[[n]],if(isTRUE(c$.config_v2))'TRUE aplica quando há fonte; ausência exige decisão registrada. FALSE somente exibe. Distâncias em restricoes_viarias.json.'else 'NULL detecta camada; TRUE exige camada; FALSE somente exibe. Distâncias em restricoes_viarias.json.')
   for(n in c('incluir_formacao_florestal','incluir_antropizadas','formacao_campo','cotas_formacao','cotas_atributos'))
     add(n,original[[n]],c[[n]],'Interpretar junto ao perfil e habilitação das cotas; resultados em ocorrencias_vegetacao.csv e cotas_realizadas.csv.')
   add('centros_detalhe',original$centros_detalhe,c$centros_detalhe,'auto usa UAs quando presentes; senão PAs. Centros efetivos em centros_recorte.gpkg e plano_download.json.')
@@ -26,7 +26,8 @@ mq_config_summary <- function(original,c,report,mode=c$modo) {
   add('qgis_python',original$qgis_python,c$qgis_python,'NULL testa instalações; versão escolhida em qgis_capacidades.json e qgis_instalacoes.json.')
   add('renovar_imagens',original$renovar_imagens,c$renovar_imagens,'Mantenha FALSE para reaproveitar. TRUE solicita novo acervo e pode exigir downloads.')
   add('cache_dir',original$cache_dir,c$cache_dir,'Cache persistente; preserve esta pasta. caches_adicionais aponta caches/projetos anteriores.')
-  tab<-do.call(rbind,rows);mq_csv(tab,file.path(report,'configuracao_efetiva.csv'))
+  if(isTRUE(c$.config_v2))for(n in c('filtrar_vegetacao','aplicar_cotas','aplicar_afastamentos','usar_formacao_florestal','usar_uas_existentes','direcoes_campo','distancia_floresta_m','distancias_viarias_m','condicao_campo','quantidade_incremento','confirmar_desvios'))add(n,original[[n]],c[[n]],'NULL herda o perfil; valor explícito prevalece. Confira decisões_metodologicas.csv quando houver exceções.')
+  tab<-do.call(rbind,rows);tab$origem<-vapply(tab$variavel,function(n)if(!is.null(c$origem_valores[[n]]))c$origem_valores[[n]]else if(is.null(original[[n]]))'padrao'else 'usuario',character(1));mq_csv(tab,file.path(report,'configuracao_efetiva.csv'))
   message('CONFIGURAÇÃO: perfil=',c$perfil,'; modo efetivo=',mode,'; grade=',paste(c$grade_m,collapse=' x '),' m (alterar ',mq_grade_variable(c),'); transecto=',c$transecto_m,' m.')
   message('Vegetação: cotas=',c$estratificar_vegetacao,'; filtro=',mq_vegetation_active(c),'; atributos=',c$estratificar_por_atributos,'. Detalhes e variáveis a revisar: configuracao_efetiva.csv.')
   invisible(tab)

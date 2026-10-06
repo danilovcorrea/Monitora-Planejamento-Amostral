@@ -82,3 +82,12 @@ A homologação móvel informada pelo responsável e a validação automatizada 
 Resultados dos testes desta versão em `validacao/testes_publicacao.json`. A migração deve preservar as configurações e funções científicas, os contratos da grade e os caches. O alias `monitora_criar_qfield` e a opção `monitora.qfield.somente_funcoes` continuam disponíveis.
 
 Na revisão dos testes, a configuração do ensaio de integração viária foi explicitada como Campestre-Savânico: ela herdava o perfil personalizado sem restrições do teste-base. A correção é do cenário de teste; o comportamento do script permaneceu preservado. Comparação com a origem confirmou configurações idênticas e lógica preservada em 107 funções (exceto identificação editorial); renderizador preservado exceto o texto de versão.
+
+
+## Candidata 1.1.0-rc1 — 06/10/2026 (não publicada)
+
+Seis perfis de finalidade; operação independente; ajustes explícitos prevalecem sobre padrões. Nova interface configuracao_versao=2 separa filtro, cotas, consulta MapBiomas e afastamentos. Configurações legadas preservam sua resolução anterior. Incremento soma novos PAs ao cadastro sem renumerar/mover históricos. Desvios metodológicos podem ser aceitos explicitamente e são registrados; falhas técnicas/integridade não são contornadas. Condição de degradação/restauração é atributo separado da formação.
+
+Validação: 16 suítes legadas passaram; 37 verificações de perfis passaram no Linux e no Rscript 4.6.0 Windows; 13 verificações de integração novas passaram (exportação de pacotes com fontes locais sintéticas, incremento, quatro perfis de protocolo e leitura/grade/seleção da AE_adarquia real: 170 vértices, 34 prioritários, 68 alternativos com grade 10 m). Manual HTML/PDF atualizado e PDF reaberto. Evidências e assinaturas: validacao/testes_v1.1.0-rc1.json.
+
+Não houve publicação, aquisição de imagens nem automação da interface RStudio nesta candidata. As UAs existentes são avaliadas pelas linhas fornecidas em transectos; a compatibilidade simultânea das futuras UAs e critérios não representados nas fontes continuam dependendo de campo. Não se declara conformidade integral apenas pela escolha de um perfil. Cartografia não foi redesenhada.

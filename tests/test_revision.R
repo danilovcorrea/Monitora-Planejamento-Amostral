@@ -1,4 +1,5 @@
-options(monitora.qfield.somente_funcoes=TRUE);source('monitora_planejamento_amostral.R',encoding='UTF-8');suppressPackageStartupMessages(library(sf))
+options(monitora.qfield.somente_funcoes=TRUE);source('monitora_planejamento_amostral.R',encoding='UTF-8');MQ_CONFIG<-mq_legacy_defaults() # Regressão da interface pública 1.0.2
+suppressPackageStartupMessages(library(sf))
 count<-0L;ok<-function(n,v){stopifnot(isTRUE(v));count<<-count+1L;cat('PASS',n,'\n')};fails<-function(expr)inherits(try(force(expr),silent=TRUE),'try-error')
 rect<-function(a,b,c,d)st_polygon(list(matrix(c(a,b,c,b,c,d,a,d,a,b),ncol=2,byrow=TRUE)))
 cr<-st_crs(31983);uc<-st_sf(cnuc='UC1',geometry=st_sfc(rect(500000,8000000,510000,8010000),crs=cr));ae<-st_sf(geometry=st_sfc(rect(501000,8001000,502000,8002000),crs=cr));cfg<-MQ_CONFIG;cfg$grade_m<-c(100,100);cfg$estratificar_vegetacao<-FALSE

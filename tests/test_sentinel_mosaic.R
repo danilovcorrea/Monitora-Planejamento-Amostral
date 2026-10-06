@@ -1,4 +1,5 @@
-options(monitora.qfield.somente_funcoes=TRUE);source('monitora_planejamento_amostral.R',encoding='UTF-8');library(sf);library(terra)
+options(monitora.qfield.somente_funcoes=TRUE);source('monitora_planejamento_amostral.R',encoding='UTF-8');MQ_CONFIG<-mq_legacy_defaults() # Regressão da interface pública 1.0.2
+library(sf);library(terra)
 d<-tempfile();dir.create(d);n<-0L;ok<-function(name,v){stopifnot(isTRUE(v));n<<-n+1L;cat('PASS',name,'\n')}
 r<-rast(nrows=10,ncols=10,nlyrs=4,xmin=500000,xmax=500100,ymin=8000000,ymax=8000100,crs='EPSG:3857');a<-st_as_sf(as.polygons(ext(r),crs=crs(r)));xy<-xyFromCell(r,1:ncell(r))
 make<-function(path,mask,value){x<-r;values(x)<-cbind(rep(value,100),rep(value,100),rep(value,100),ifelse(mask,255,0));tmp<-tempfile(fileext='.tif');writeRaster(x,tmp,datatype='INT1U',overwrite=TRUE);sf::gdal_utils('translate',tmp,path,options=c('-a_nodata','none','-colorinterp','red,green,blue,alpha'),quiet=TRUE)}

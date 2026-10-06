@@ -1,6 +1,6 @@
 # Instalação real de pacote R mínimo em repositório/biblioteca temporários, sem rede.
 options(monitora.qfield.somente_funcoes=TRUE)
-before<-search();source('monitora_planejamento_amostral.R',encoding='UTF-8')
+before<-search();source('monitora_planejamento_amostral.R',encoding='UTF-8');MQ_CONFIG<-mq_legacy_defaults() # Regressão da interface pública 1.0.2
 checks<-character();ok<-function(name,value){stopifnot(isTRUE(value));checks<<-c(checks,name);cat('PASS ',name,'\n',sep='')}
 ok('somente_funcoes_nao_anexa_pacotes',identical(before,search()))
 ok('lpSolve_na_lista_completa',length(MQ_PACOTES)==15L&&'lpSolve'%in%MQ_PACOTES)

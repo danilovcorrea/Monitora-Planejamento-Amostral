@@ -1,4 +1,4 @@
-options(monitora.qfield.somente_funcoes=TRUE);source('monitora_planejamento_amostral.R',encoding='UTF-8')
+options(monitora.qfield.somente_funcoes=TRUE);source('monitora_planejamento_amostral.R',encoding='UTF-8');MQ_CONFIG<-mq_legacy_defaults() # Regressão da interface pública 1.0.2
 n<-0;ok<-function(name,v){stopifnot(isTRUE(v));n<<-n+1;cat('PASS',name,'\n')}
 c<-MQ_CONFIG;c$perfil<-'personalizado';c$parametros_protocolo<-list(transecto_m=50,grade_m=c(100,100),direcoes=character(),distancias_viarias_m=numeric());c$grade_m<-c(77,77)
 report<-tempfile();dir.create(report);effective<-mq_protocol(c)

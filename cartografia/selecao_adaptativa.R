@@ -10,6 +10,7 @@ mq_design_select <- function(g,c,report,old=NULL) {
   viable<-g$mq_apto&mq_road_available(g)
   # Zero declarado é exclusão. Zero de meta automática para antropizadas permite complemento.
   for(f in fields){q<-criteria[[f]];explicit<-if('explicita'%in%names(q))q$explicita else rep(TRUE,base::nrow(q));zero<-q$classe[explicit&q$valor==0];viable<-viable&!g[[f]]%in%zero}
+  if(isTRUE(c$preservar_historico_excecao))viable[g$categoria!='grade']<-TRUE
   if(!any(viable))mq_stop('Nenhum candidato elegível/classificado após exclusões e restrições. Consulte classificacao_vegetacao.csv e vegetacao_pendente.csv; ausência de classificação não prova ausência de alvo.')
   if(any(g$categoria!='grade'&!viable))mq_stop('PA histórico incompatível com elegibilidade, exclusão explícita ou vias; migração/revisão necessária.')
   opn<-sum(g$categoria=='prioritario');oan<-sum(g$categoria=='alternativo')
@@ -19,7 +20,7 @@ mq_design_select <- function(g,c,report,old=NULL) {
   mq_csv(quantities,file.path(report,'selecao_quantidades.csv'))
   tuples<-do.call(paste,c(lapply(sf::st_drop_geometry(g)[,fields,drop=FALSE],function(v){v<-as.character(v);paste0(nchar(v,type='bytes'),':',v)}),sep='|'))
   keys<-vapply(tuples,digest::digest,character(1),algo='sha256',serialize=FALSE);g$mq_estrato<-keys;g$mq_estrato[!g$mq_apto]<-'fora_alvo'
-  if(!is.null(old)) {
+  if(!is.null(old)&&!isTRUE(c$revisao_historico)) {
     ix<-base::match(g$chave_grade,old$chave_grade);sel<-which(!is.na(ix)&g$categoria!='grade')
     if(length(sel)&&(!'mq_estrato'%in%names(old)||anyNA(old$mq_estrato[ix[sel]])||any(old$mq_estrato[ix[sel]]!=g$mq_estrato[sel])))mq_stop('Expansão mudaria estrato de PA histórico; migração explícita necessária.')
   }
@@ -76,11 +77,12 @@ mq_design_select <- function(g,c,report,old=NULL) {
 }
 mq_selection_occurrences <- function(g,c,report) {
   notes<-character()
+  if('mq_condicao'%in%names(g)){mq_csv(g,file.path(report,'condicoes_vegetacao.csv'));ncond<-sum(g$categoria!='grade'&g$mq_condicao%in%c('degradada','restauracao','restaurada'));if(ncond)notes<-c(notes,paste(ncond,'PAs em degradação/restauração declarada no vetor; formação e cobertura preservadas separadamente. Consulte condicoes_vegetacao.csv.'))}
   if(!'mq_formacao'%in%names(g)&&'mb_codigo'%in%names(g))g$mq_formacao<-ifelse(g$mb_codigo%in%15,'pastagem','nao_estratificada')
   if('mq_formacao'%in%names(g)) {
-    g$mq_ocorrencia<-ifelse(g$mq_formacao=='pastagem','Pastagem incluída; não é formação nativa. Confirmar aptidão em campo.',ifelse(g$mq_formacao=='degradada','Degradação declarada no vetor; não inferida automaticamente da imagem.',ifelse(g$mq_formacao=='nao_resolvida','Classificação não resolvida; ponto excluído da seleção.','')))
+    g$mq_ocorrencia<-ifelse(g$mq_formacao=='pastagem','Pastagem incluída; não é formação nativa. Confirmar aptidão em campo.',ifelse(g$mq_formacao=='degradada','Degradação declarada no vetor; não inferida automaticamente da imagem.',ifelse(g$mq_formacao=='nao_resolvida','Classificação não resolvida; elegibilidade depende do filtro efetivo e de decisões registradas.','')))
     out<-g[nzchar(g$mq_ocorrencia),];mq_csv(out,file.path(report,'ocorrencias_vegetacao.csv'))
-    n<-sum(nzchar(g$mq_ocorrencia)&g$categoria!='grade');pending<-sum(g$mq_formacao=='nao_resolvida')
+    n<-sum(nzchar(g$mq_ocorrencia)&g$categoria!='grade');pending<-sum(g$mq_formacao=='nao_resolvida'&!g$mq_apto)
     if(n||pending)notes<-c(notes,paste('Ocorrências vegetacionais:',n,'PAs em pastagem/degradada;',pending,'pontos sem classificação excluídos. Consulte ocorrencias_vegetacao.csv; não comprova conformidade de campo.'))
     mq_csv(base::as.data.frame(table(categoria=g$categoria,formacao=g$mq_formacao)),file.path(report,'distribuicao_formacoes.csv'))
   }

@@ -1,0 +1,208 @@
+{
+  "versao": "1.1.0-rc1",
+  "data_utc": "2026-10-06T14:42:40.056736+00:00",
+  "base_publica": "61e3ad8d6d2fbf2b9b55a58c8a0b93d4422ce90c",
+  "branch": "codex/perfis-configuracao-v1.1.0",
+  "suites": [
+    {
+      "suite": "profiles",
+      "resultado": "PASS",
+      "totais_reportados": [
+        "TOTAL 28 PASS",
+        "TOTAL_PERFIS_FINAL 35 PASS",
+        "TOTAL_PERFIS_FINAL 37 PASS"
+      ]
+    },
+    {
+      "suite": "profiles_integration",
+      "resultado": "PASS",
+      "totais_reportados": [
+        "TOTAL 20 PASS",
+        "TOTAL_FINAL 26 PASS",
+        "TOTAL_HOMOLOGACAO 30 PASS",
+        "TOTAL_FINAL_VALIDADO 31 PASS",
+        "TOTAL_PROFILES_INTEGRACAO 13 PASS"
+      ]
+    },
+    {
+      "suite": "test_adaptive.R",
+      "resultado": "PASS",
+      "totais_reportados": [
+        "TOTAL_ADAPTATIVO 29 PASS"
+      ]
+    },
+    {
+      "suite": "test_adaptive_integration.R",
+      "resultado": "PASS",
+      "totais_reportados": [
+        "TOTAL 20 PASS",
+        "TOTAL_FINAL 26 PASS",
+        "TOTAL_HOMOLOGACAO 30 PASS",
+        "TOTAL_FINAL_VALIDADO 31 PASS",
+        "TOTAL_ADAPTATIVO_INTEGRACAO 8 PASS"
+      ]
+    },
+    {
+      "suite": "test_core.R",
+      "resultado": "PASS",
+      "totais_reportados": [
+        "TOTAL 20 PASS",
+        "TOTAL_FINAL 26 PASS",
+        "TOTAL_HOMOLOGACAO 30 PASS",
+        "TOTAL_FINAL_VALIDADO 31 PASS"
+      ]
+    },
+    {
+      "suite": "test_dependencies.R",
+      "resultado": "PASS",
+      "totais_reportados": [
+        "TOTAL 14 PASS"
+      ]
+    },
+    {
+      "suite": "test_design.R",
+      "resultado": "PASS",
+      "totais_reportados": [
+        "TOTAL_DESIGN 25 PASS",
+        "TOTAL_DESIGN_FINAL 28 PASS",
+        "TOTAL_DESIGN_VALIDADO 33 PASS",
+        "TOTAL_DESIGN_ENTREGA 34 PASS"
+      ]
+    },
+    {
+      "suite": "test_design_integration.R",
+      "resultado": "PASS",
+      "totais_reportados": [
+        "TOTAL 20 PASS",
+        "TOTAL_FINAL 26 PASS",
+        "TOTAL_HOMOLOGACAO 30 PASS",
+        "TOTAL_FINAL_VALIDADO 31 PASS",
+        "TOTAL_INTEGRACAO_DESIGN 7 PASS",
+        "TOTAL_INTEGRACAO_V042 10 PASS"
+      ]
+    },
+    {
+      "suite": "test_flexible.R",
+      "resultado": "PASS",
+      "totais_reportados": [
+        "TOTAL 16 PASS"
+      ]
+    },
+    {
+      "suite": "test_flexible_integration.R",
+      "resultado": "PASS",
+      "totais_reportados": [
+        "TOTAL 20 PASS",
+        "TOTAL_FINAL 26 PASS",
+        "TOTAL_HOMOLOGACAO 30 PASS",
+        "TOTAL_FINAL_VALIDADO 31 PASS",
+        "TOTAL_FLEX_INTEGRACAO 4 PASS"
+      ]
+    },
+    {
+      "suite": "test_image_dimensions.R",
+      "resultado": "PASS",
+      "totais_reportados": [
+        "TOTAL 20 PASS",
+        "TOTAL_FINAL 26 PASS",
+        "TOTAL_HOMOLOGACAO 30 PASS",
+        "TOTAL_FINAL_VALIDADO 31 PASS",
+        "TOTAL_DIMENSOES_IMAGENS 12 PASS"
+      ]
+    },
+    {
+      "suite": "test_imagery.R",
+      "resultado": "PASS",
+      "totais_reportados": [
+        "TOTAL  18  PASS",
+        "TOTAL_FINAL  23  PASS",
+        "TOTAL_FINAL  24  PASS",
+        "TOTAL_FINAL  25  PASS"
+      ]
+    },
+    {
+      "suite": "test_island.R",
+      "resultado": "PASS",
+      "totais_reportados": [
+        "TOTAL_ILHA 17 PASS"
+      ]
+    },
+    {
+      "suite": "test_progress.R",
+      "resultado": "PASS",
+      "totais_reportados": [
+        "TOTAL 11 PASS"
+      ]
+    },
+    {
+      "suite": "test_resume_guidance.R",
+      "resultado": "PASS",
+      "totais_reportados": [
+        "TOTAL_RETOMADA 8 PASS",
+        "TOTAL_RETOMADA_FINAL 11 PASS"
+      ]
+    },
+    {
+      "suite": "test_revision.R",
+      "resultado": "PASS",
+      "totais_reportados": [
+        "TOTAL_REVISAO 16 PASS",
+        "TOTAL_REVISAO_FINAL 20 PASS",
+        "TOTAL_REVISAO_FINAL 24 PASS",
+        "TOTAL_REVISAO_FINAL 25 PASS",
+        "TOTAL_REVISAO_FINAL 27 PASS",
+        "TOTAL_REVISAO_FINAL 28 PASS"
+      ]
+    },
+    {
+      "suite": "test_roads.R",
+      "resultado": "PASS",
+      "totais_reportados": [
+        "TOTAL 30 PASS"
+      ]
+    },
+    {
+      "suite": "test_sentinel_mosaic.R",
+      "resultado": "PASS",
+      "totais_reportados": [
+        "TOTAL_SENTINEL 4 PASS",
+        "TOTAL_SENTINEL_FINAL 5 PASS"
+      ]
+    },
+    {
+      "suite": "windows",
+      "resultado": "PASS",
+      "totais_reportados": [
+        "TOTAL 28 PASS",
+        "TOTAL_PERFIS_FINAL 35 PASS",
+        "TOTAL_PERFIS_FINAL 37 PASS"
+      ]
+    }
+  ],
+  "artefatos": {
+    "monitora_planejamento_amostral.R": {
+      "sha256": "830e7cdc9d16d9a1ab24d8cc332848afbef15f9205e162886da6bdf02c2d9041",
+      "bytes": 331538
+    },
+    "manual_usuario.html": {
+      "sha256": "74c492eac85ff87012d3e1eb4be4de5257694dcb28dfad12aff31668078f40bd",
+      "bytes": 45212
+    },
+    "manual_usuario.pdf": {
+      "sha256": "e40de1efe85d4388bd7244dc11f16d8a03931d0cae47c70929fbf0efbde9985a",
+      "bytes": 141765
+    }
+  },
+  "limites": [
+    "Testes Windows executados por Rscript 4.6.0; não automatizou interface do RStudio.",
+    "Integração completa usa vetores e Sentinel sintéticos locais; AE_adarquia real testada na leitura, grade e seleção.",
+    "Nenhum download de imagens ou publicação efetuado.",
+    "Cartografia não foi redesenhada; teste móvel da candidata não executado.",
+    "Distâncias às UAs existentes usam transectos fornecidos. Compatibilidade simultânea de futuras UAs permanece avaliação de campo."
+  ],
+  "manual_pdf": {
+    "resultado": "PASS",
+    "verificacao": "PDF reaberto; versão, perfis e variáveis principais presentes",
+    "paginas": 15
+  }
+}
