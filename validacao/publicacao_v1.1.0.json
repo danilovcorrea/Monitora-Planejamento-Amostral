@@ -1,0 +1,45 @@
+{
+  "versao": "1.1.0",
+  "data": "2026-10-06",
+  "candidata_aprovada": "1.1.0-rc1",
+  "commit_candidata": "461984287f1ce34eb5850e71c5ff4d38952eec56",
+  "autorizacao_publicacao": "Mensagem direta do usuário: publique",
+  "comparacao": {
+    "status": "PASS",
+    "funcoes_preservadas": 129,
+    "MQ_CONFIG_preservada": true,
+    "MQ_PACOTES_preservados": true,
+    "recursos_preservados": true,
+    "excecoes": "Somente textos de identificação da versão"
+  },
+  "sha256_R_candidata": "830e7cdc9d16d9a1ab24d8cc332848afbef15f9205e162886da6bdf02c2d9041",
+  "sha256_R_publicado": "12b2f419bb3754fbac34d7d4146339084577b2fe0f71f4171c203a60127d3d96",
+  "suites_legadas": 16,
+  "verificacoes_perfis": 37,
+  "runtimes_perfis": [
+    "R Linux",
+    "Rscript 4.6.0 Windows"
+  ],
+  "integracao_verificacoes": 13,
+  "AE_adarquia_real": {
+    "escopo": "leitura, grade e seleção",
+    "grade_m": 10,
+    "vertices": 170,
+    "prioritarios": 34,
+    "alternativos": 68
+  },
+  "integracao_fontes": "vetores e Sentinel sintéticos locais",
+  "manual": {
+    "status": "PASS",
+    "paginas": 15,
+    "versao": "1.1.0"
+  },
+  "nova_automacao_RStudio": false,
+  "novo_teste_fisico_celular": false,
+  "evidencia_candidata": "testes_v1.1.0-rc1.json",
+  "testes_promocao": {
+    "comparacao_semantica": "PASS",
+    "perfis": 37,
+    "integracao": 13
+  }
+}

@@ -1,18 +1,16 @@
 # Monitora Campestre Savânico - Alvo Global - Planejamento e Desenho Amostral, Cartografia e navegação em campo
 
-**Versão 1.0.2 · script R independente · Programa Monitora**
+**Versão 1.1.0 · script R independente · Programa Monitora**
 
-A versão 1.0.2 oferece compatibilidade com QGIS 3.44 e 4, verifica a cartografia antes dos downloads e explica os valores efetivamente usados e as variáveis a revisar. Reaproveita imagens, recortes e mosaicos; combina fontes Sentinel parciais e adquire somente lacunas autorizadas. Homologada localmente no RStudio pelo responsável pelo projeto.
+Planejamento do desenho amostral, projetos QGIS/QField, mapas, vetores, tabelas e relatórios. A versão 1.1.0 acrescenta seis perfis de finalidade, configuração unificada, incremento preservando pontos históricos e decisões metodológicas registradas. Mantém compatibilidade com configurações legadas, QGIS 3/4 e reaproveitamento de imagens/cache.
 
-Ferramenta para planejar o desenho amostral a partir de Áreas Elegíveis, organizar dados espaciais, criar projetos editáveis no QGIS e projetos de navegação no QField, e exportar mapas, vetores, tabelas e relatórios. Inclui os perfis Campestre-Savânico, Ilha e personalizado, com seus critérios próprios.
+**[Manual do usuário em HTML](https://danilovcorrea.github.io/Monitora-Planejamento-Amostral/)** · **[Manual PDF](https://danilovcorrea.github.io/Monitora-Planejamento-Amostral/manual_usuario.pdf)**
 
-**[Ler o manual do usuário em HTML](https://danilovcorrea.github.io/Monitora-Planejamento-Amostral/)** · **[Baixar o manual em PDF](https://danilovcorrea.github.io/Monitora-Planejamento-Amostral/manual_usuario.pdf)**
+**[Baixar script R](https://github.com/danilovcorrea/Monitora-Planejamento-Amostral/releases/latest/download/monitora_planejamento_amostral.R)** · [Versão completa e verificações](https://github.com/danilovcorrea/Monitora-Planejamento-Amostral/releases/latest)
 
-**[Baixar o script R](https://github.com/danilovcorrea/Monitora-Planejamento-Amostral/releases/latest/download/monitora_planejamento_amostral.R)** · [Versão completa e arquivos de verificação](https://github.com/danilovcorrea/Monitora-Planejamento-Amostral/releases/latest)
+O manual está pronto para consulta sem executar R. O script é autossuficiente, incluindo auxiliares cartográficos e recursos. A instalação das UAs depende dos procedimentos e da avaliação em campo; escolher um perfil não certifica conformidade integral.
 
-O manual já está pronto para consulta; não é necessário executar R. O script distribuído é autossuficiente e incorpora os auxiliares cartográficos e recursos. Requer os pacotes R indicados abaixo e QGIS/PyQGIS para gerar os layouts e mapas. A instalação efetiva de UAs depende da avaliação em campo e dos protocolos aplicáveis.
-
-Esta ferramenta deriva da versão homologada 0.4.7 do módulo independente desenvolvido no [Monitora-Campestre-Savanico](https://github.com/danilovcorrea/Monitora-Campestre-Savanico). Este é o repositório canônico do planejamento; o repositório original mantém o tratamento e as análises dos dados biológicos. Consulte [homologação](HOMOLOGACAO.md) e [proveniência](validacao/proveniencia.json).
+Este é o repositório canônico da ferramenta de planejamento, derivada do [Monitora-Campestre-Savanico](https://github.com/danilovcorrea/Monitora-Campestre-Savanico), que mantém o tratamento e as análises de dados biológicos. Consulte [homologação](HOMOLOGACAO.md) e [proveniência](validacao/proveniencia.json).
 
 ## Início
 
@@ -25,35 +23,66 @@ Esta ferramenta deriva da versão homologada 0.4.7 do módulo independente desen
 
 Para usar como biblioteca: `options(monitora.qfield.somente_funcoes=TRUE)` antes de `source()`, e depois `monitora_planejamento_amostral(config)` (o nome anterior `monitora_criar_qfield` permanece como alias compatível). Ao executar a função principal, o script prepara os pacotes automaticamente; carregar somente as funções com a opção acima não instala nem anexa pacotes. Usa os repositórios configurados no R, com CRAN HTTPS quando o espelho não foi definido. Pacotes já disponíveis não são reinstalados. Falhas de instalação ou carregamento interrompem a execução com orientação no console. O script não publica projetos automaticamente.
 
-## Parâmetros
+## Perfis e configuração
 
-| Parâmetro | Padrão / regra |
+| `perfil` | Referências iniciais |
 |---|---|
-| `entrada`, `saida`, `projeto` | Pastas separadas; título livre; cada execução cria saída própria |
-| `modo` | `auto`, `planejar`, `montar`, `expandir` |
-| `transecto_m` | 50 m |
-| `distancia_min_m` | 100 m, referente a UAs/segmentos; não é garantia do espaçamento de PAs |
-| `deslocamento_max_m` | 10 m; regra operacional, não desloca o PA automaticamente |
-| `grade_m` | `c(156.25,156.25)`; vértices, não centros |
-| `epsg` | `NULL`: SIRGAS2000/UTM adequada; área extensa/multifuso exige configuração explícita |
-| `prioritarios` | `list(n=NULL,percentual=20)` |
-| `alternativos` | `list(n=NULL,percentual=NULL)` significa dobro dos prioritários |
-| `semente` | 20261001; seleção determinística por hash da semente e identidade da célula |
-| `mapbiomas` | TRUE; erro não obrigatório fica explícito nos atributos/relatório |
-| `mb_produto`, `mb_colecao`, `mb_ano` | `30m`, `11`, `2025`; também homologado `10m`, `4`, anos 2017–2025 |
-| `mb_obrigatorio` | FALSE; TRUE bloqueia saída quando extração falha |
-| `referencia_anterior` | Pasta `02_relatorio` anterior, obrigatória em `expandir` |
-| `max_pontos` | 500000; proteção de volume, sem redução silenciosa |
+| `treinamento_navegacao` | Qualquer cobertura; sem filtros, cotas ou afastamentos; grade 50 m |
+| `treinamento_campestre` | Referências campestres; grade 156,25 m, transecto 50 m; adensamento com aviso |
+| `treinamento_ilha` | Referências experimentais do piloto; grade 30 m, transecto 25 m |
+| `monitoramento_campestre` | Padrão inicial; referências campestres e critérios ativados |
+| `monitoramento_ilha` | Protocolo em construção; inclui floresta por padrão |
+| `personalizado` | Controles restritivos/condicionais desligados; ativação individual |
 
-Informe número **ou** percentual, nunca ambos. Exemplo: `list(n=40,percentual=NULL)`. Percentuais são arredondados para cima, sobre todos os vértices únicos cobertos pela união das AEs (incluindo fronteiras e excluindo interiores de buracos). O padrão `politica_insuficiencia="usar_disponiveis"` adapta os quantitativos à capacidade e registra déficits. A opção `"bloquear"` exige o atendimento estrito das cotas. Zero explícito é permitido.
+Em todos os perfis da configuração 2: `NULL` herda o padrão; `TRUE` ativa; `FALSE` desativa; valor explícito prevalece. Use os mesmos campos `grade_m`, `transecto_m`, `distancia_min_m` e `deslocamento_max_m`, independentemente do perfil. A grade define candidatos, não a implantação simultânea de UAs.
 
-`auto` escolhe `montar` se encontrar grade, PAs, UAs, extremos ou transectos fornecidos. `montar` não cria pontos nem completa cotas. `planejar` rejeita essas camadas para impedir substituição acidental. Para adicionar UAs observadas a um planejamento gerado, faça uma montagem posterior com as camadas resultantes e as referências observadas.
+| `operacao` | Uso |
+|---|---|
+| `planejar` | Criar grade e novos PAs; UAs existentes podem entrar como referência |
+| `montar` | Preservar pontos fornecidos e organizar os produtos |
+| `incrementar` | Acrescentar PAs na grade/área existente; exige `referencia_anterior` |
+| `expandir` | Ampliar cobertura preservando origem, espaçamento e IDs; exige `referencia_anterior` |
 
-## Configuração efetiva e QGIS
+Em incrementar, `quantidade_incremento="novos"` soma ao histórico; `"total"` define o total desejado. Em expandir as quantidades são totais. Para mudar espaçamento/origem, faça outro planejamento sem mover o histórico.
 
-Com várias instalações QGIS, a seleção automática testa as versões da mais recente para a mais antiga. O teste inclui fontes, legendas, escala, localizadores, PDF georreferenciado, PNG e reabertura do layout, antes da aquisição de imagens. Informe `qgis_python` para fixar uma instalação; nesse caso ela não será substituída silenciosamente.
+`prioritarios=list(n=NULL,percentual=20)` usa 20% dos vértices da grade cortada pela união das AEs; `alternativos=list(n=NULL,percentual=NULL)` solicita o dobro. Informe n OU percentual. Em incrementar, percentuais de novos pontos usam a grade inteira das AEs atuais; cotas incidem no total final, histórico + novos.
 
-`configuracao_efetiva.csv` mostra valor informado, valor utilizado e orientação. Para alterar o espaçamento: `grade_m` no perfil Campestre-Savânico; `parametros_protocolo$grade_m` no personalizado; `padrao_ilha$grade_m` no Ilha, salvo sobrescrita em `parametros_protocolo$grade_m`. Uma grade vazia informa área, envelope, origem, espaçamento e a variável a revisar. O script não altera a malha automaticamente.
+Exemplo para treinamento urbano (substitua os campos no bloco inicial):
+
+```r
+perfil = 'treinamento_navegacao',
+operacao = 'planejar',
+grade_m = c(10,10),
+transecto_m = 5,
+prioritarios = list(n=20,percentual=NULL),
+alternativos = list(n=0,percentual=NULL)
+```
+
+## Filtros, cotas e decisões
+
+`filtrar_vegetacao` controla elegibilidade; `aplicar_cotas` distribui por formação/fitofisionomia; `estratificar_por_atributos` acrescenta cotas cumulativas no MESMO conjunto. `mapbiomas` consulta atributos. Os controles são independentes. Campo/savana são o padrão campestre; floresta é incluída por padrão no Ilha, mas `incluir_formacao_florestal` é respeitado em qualquer perfil.
+
+`condicao_campo` registra conservada, degradada, restauracao ou restaurada separadamente da formação. `incluir_antropizadas` permite pastagens e condições declaradas de degradação/restauração, sem convertê-las em vegetação nativa. Use cotas de condição/manejo quando o objetivo exigir esforço específico nesses contextos.
+
+`cotas_formacao` recebe classe + n OU percentual; `cotas_atributos` é uma lista por campo. Margens são resolvidas conjuntamente. Sem cotas explícitas, o algoritmo balanceia nativas e permite complemento por antropizadas. Esse padrão não é obrigação universal do protocolo nem prova representatividade da UC.
+
+`politica_insuficiencia="usar_disponiveis"` propõe quantidades viáveis; déficits exigem decisão. `"bloquear"` tenta metas exatas e permite rever inviabilidade comprovada mediante decisão explícita. Zero explícito é exclusão. Confira `selecao_quantidades.csv`, `cotas_realizadas.csv` e `condicoes_vegetacao.csv`.
+
+`confirmar_desvios=NULL` pergunta; TRUE aceita os desvios descritos e registra; FALSE cancela quando ocorrerem. Sem console interativo, NULL não autoriza. Downloads possuem confirmações separadas. Falhas de integridade, geometria e identificação exigem correção; aceitar aviso não cria vértices ausentes nem comprova conformidade.
+
+`configuracao_efetiva.csv` informa valores solicitados, efetivos e origem; `decisoes_metodologicas.csv` registra avisos e respostas; `configuracao_selecao.json` registra efeitos das decisões na seleção. Os registros aparecem no relatório HTML.
+
+Configurações antigas sem `configuracao_versao=2` preservam sua resolução legada. Para migrar, use o novo bloco: não misture `parametros_protocolo`, `padrao_ilha` ou `estratificar_vegetacao` com os novos controles.
+
+## Afastamentos e limitações
+
+Use vetores `estradas_pavimentadas`, `estradas_terra`, `trilhas_preexistentes`, `formacao_florestal` e `transectos`. Os controles `usar_*` herdam com NULL, ativam com TRUE e desativam com FALSE. `aplicar_afastamentos` define o padrão geral; cada controle explícito prevalece. Sem fonte ativa, a avaliação permanece pendente e exige decisão registrada.
+
+As referências campestres são 100/50/5 m para vias e 100 m para floresta e outra UA, aplicadas à linha inteira contra fontes fornecidas. Linhas viárias consideram metade de `largura_m` quando informada. Uma direção precisa atender conjuntamente às fontes ativas. UAs existentes usam linhas reais em `transectos`; PAs candidatos não equivalem a UAs instaladas. A compatibilidade simultânea das futuras UAs permanece avaliação de campo.
+
+Os perfis Ilha usam referências experimentais do piloto: transecto 25 m, grade 30 m e afastamento entre linhas 30 m, com N/L/S/O. Não ativam automaticamente restrições viárias/florestais campestres. O desenho específico do piloto Noronha deve ser preservado por montagem das camadas fornecidas; não é reproduzido apenas por esses padrões.
+
+O teste inicial QGIS confere fontes, legendas, layouts, PDF/PNG e reabertura antes dos downloads. Com várias instalações, testa da mais recente à mais antiga. `qgis_python` fixa uma instalação sem substituição silenciosa. Grade vazia informa a variável a revisar; o script não altera o espaçamento automaticamente.
 
 ## Imagens, confirmação e cache
 
@@ -80,7 +109,7 @@ Nomes padronizados (arquivo sem extensão ou camada interna):
 - `grade_amostral`, `PA_priorit`, `PA_altern`: pontos preexistentes.
 - `verg_ini`, `verg_fin`, `UAs`: pontos observados.
 - `transectos`: segmentos de UAs observadas; não usar para caminhos de acesso.
-- `formacao_florestal`, `rodovias`, `estradas`, `trilhas`: referências para diagnóstico de distâncias, quando fornecidas.
+- `formacao_florestal`: polígonos para afastamento quando ativado; `rodovias`, `estradas`, `trilhas`: nomes legados de referência, exigem papel explícito para triagem viária.
 - `acessos`: linhas de referência, sem assumir automaticamente o tipo de via.
 - `pontos_interesse.gpkg` e `trajeto.gpkg` (ou o legado `apoio_campo.gpkg`): `pontos_interesse` (POINT, campo `ponto_interesse`) e `trajeto` (MULTILINESTRING, campo `trajeto`), ambos com `obs` texto, `data_hora` data/hora e identificador `fid`. São as camadas editáveis no projeto de campo. Campos adicionais fornecidos são preservados.
 
@@ -104,20 +133,6 @@ O serviço WFS federal é consultado em toda execução. As páginas e contagens
 
 `referencia_grade.json` e `cadastro_grade.gpkg` preservam origem, índices, limites de referência e IDs. `expandir` mantém projeção, dimensões e seleções existentes, acrescentando IDs sem reciclagem. A consulta territorial atual é registrada, mas atualização do limite de uma UC conhecida não desloca sua malha. Nova UC alcançada ganha referência própria apenas na área nunca processada. O domínio histórico e a malha dos pontos existentes são preservados. Alterar resolução/projeção não é expansão: exige projeto de referência novo. Guarde a pasta inteira `02_relatorio`.
 
-## Protocolo e limites dos diagnósticos
-
-PA = início previsto. O roteiro de 29/04/2026 orienta tentar Norte, Leste, Sul e Oeste, com ajuste de até 10 m quando necessário; instalação inviável leva ao alternativo mais próximo. A simulação usa norte geográfico local e comprimento métrico, sem deslocar o PA. Não afirma que ocorreu instalação.
-
-Os mínimos se aplicam a todo o segmento: floresta e rodovia 100 m; estrada de terra 50 m; trilha 5 m; outra UA conforme `distancia_min_m`. Diagnósticos usam somente geometrias fornecidas e não transformam ausência de camada em ausência de obstáculo. MapBiomas não prova distâncias a floresta nem homogeneidade da transecção. Mudança de formação, obstáculos e relevo precisam ser avaliados em campo. Os diagnósticos posteriores à seleção não alteram cotas nem tratam todos os alternativos como UAs simultâneas. As restrições viárias habilitadas são aplicadas antes da seleção e reduzem os candidatos aptos; a grade e o denominador são preservados. Acima de 20 mil PAs as simulações são explicitamente não executadas; a grade continua íntegra.
-
-`alternativos_proximos.csv` usa distância plana do PA prioritário ao PA alternativo, sem comprovar viabilidade. O ponto de partida real do monitor e o terreno podem mudar a opção de navegação. A posição realizada deve ser registrada na UA, mantendo o vínculo ao PA original quando conhecido.
-
-## MapBiomas
-
-Extração do pixel que contém o ponto, sem interpolação de códigos. Campos: `mb_codigo`, `mb_classe`, `mb_formacao`, produto, coleção, ano, resolução, fonte e status. `mb_formacao` só contém classes oficialmente denominadas Formação; outras classes não são forçadas para Campestre/Savânica. Trata-se de classificação cartográfica, separada da observação de campo.
-
-O acesso parcial usa GDAL/terra; a legenda, URL e identificador remoto ETag são registrados. Não mistura 10 m/30 m nem troca coleção como fallback silencioso. Os atributos ficam offline no projeto. Nenhum raster nacional completo é incluído no pacote.
-
 ## Saídas e validação
 
 `01_qfield`: QGS, dados, mapas e ZIP portátil. `02_relatorio`: relatório HTML, mapa geral, parâmetros, fontes/checksums, etapas/duração, referência da grade e diagnósticos. `03_vetores`: GPKG/KML/KMZ dos pontos. `04_csv`: todos os atributos dos pontos, coordenadas e dicionário. CSV usa UTF-8 BOM, `;` e ponto decimal; valores ausentes são vazios. KML conserva atributos como texto; GeoPackage conserva os tipos. Os nomes físicos têm índice para evitar colisões.
@@ -126,63 +141,18 @@ O projeto exibe coordenadas geográficas WGS84 em graus decimais, seis casas, e 
 
 O relatório distingue geração validada automaticamente de homologação móvel. Cobertura de imagens é verificada por pixel válido nos pontos, com transparência considerada; não prova cobertura do trajeto inteiro, resolução nativa ou ausência de nuvens. Projetos com lacunas permanecem identificados como cobertura parcial. Preserve o apoio preenchido antes de atualizar a pasta do projeto. A ferramenta nunca envia ao QFieldCloud automaticamente.
 
-## Testes
-
-No diretório raiz do repositório: `Rscript --vanilla tests/test_core.R` e `Rscript --vanilla tests/test_imagery.R`. Ensaios institucionais são locais e não distribuem bases biológicas. O script é derivado dos leitores espaciais da versão pública v3.0.6, com fonte identificada no cabeçalho.
-
 ## Documentação e manutenção
 
 O [manual HTML](https://danilovcorrea.github.io/Monitora-Planejamento-Amostral/) é servido pelo GitHub Pages; o [PDF](https://danilovcorrea.github.io/Monitora-Planejamento-Amostral/manual_usuario.pdf) corresponde à mesma versão. Fontes editoriais em `manual/`; páginas prontas em `docs/`. Para reconstruir: `python3 manual/build_manual.py`. Para incorporar alterações do renderizador e helpers ao R: `python3 cartografia/build_embedded.py`.
 
 Os testes sintéticos em `tests/test_*.R` usam dados temporários. Os testes PyQGIS de homologação recebem caminhos de produtos locais por argumento; os dados de campo não são distribuídos. Consulte `tests/README.md`.
 
-## Cotas cumulativas (v1.0.0)
-
-Vegetação habilitada por padrão. Campestre-Savânico aceita campos e savanas; Ilha inclui automaticamente floresta (inclusive 100% florestal). `incluir_antropizadas=TRUE` permite pastagem (MapBiomas 15) e degradação declarada no vetor, sempre com ocorrências. Não se infere degradação da classe 25. Classes ambíguas ficam pendentes e seus pontos são excluídos, sem bloquear os demais. Vetores inconsistentes continuam exigindo correção.
-
-`politica_insuficiencia="usar_disponiveis"` é o padrão. Prioriza o quantitativo de prioritários; alternativos chegam até o disponível. Cotas por vegetação e atributos são metas cumulativas conjuntas, com desvios registrados quando a capacidade não permite cumpri-las. Zero explícito continua exclusão; históricos e restrições espaciais são preservados. `"bloquear"` mantém o desenho estrito. Sem cotas explícitas, a preferência é usar nativas primeiro nos prioritários e depois nos alternativos, completando com antropizadas. O denominador é toda a grade recortada às AEs.
-
-`cotas_formacao` recebe classe + n OU percentual. `cotas_atributos` recebe uma lista nomeada por campo. Consulte `selecao_quantidades.csv`, `cotas_realizadas.csv`, `ocorrencias_vegetacao.csv` e o relatório HTML. Quantidades realizadas não equivalem à instalação de UAs nem à conformidade do protocolo. Montagem preserva pontos fornecidos; expansão não migra silenciosamente contratos históricos.
-
-## Revisão após teste no celular (v1.0.0)
-
-- `codigo_pa`: PA com ao menos cinco algarismos; `id_malha` calculado antes do recorte; originais e correspondência preservados ao migrar.
-- Um MBTiles de detalhe, `sat_escala_local`, com alpha e prioridade das fontes; `sat_escala_regional` é o Sentinel offline.
-- Um GPKG por camada em `01_qfield/dados`; apoio antigo agrupado continua legível.
-- `05_qgis/projeto_edicao.qgz`: vetores de trabalho separados, quatro temas/marcadores/layouts editáveis.
-- `mapas_pdf` e `mapas_png`: AEs, grade, prioritários e alternativos. PDFs georreferenciados, PNG com PGW/PRJ.
-- `gerar_cartografia=TRUE`, `qgis_python=NULL`, `mapas_papel='A4'`, `mapas_dpi=300`, `elaboracao='Programa Monitora'`.
-
-Abra `ABRA_AQUI.html` na entrega. Edite no produto QGIS; não há sincronização automática dessas edições com o ZIP de campo ou exportações anteriores.
-
-Na revisão cartográfica v1.0.0, o QGIS e as legendas usam nomes completos. UCs são identificadas pelos atributos oficiais ICMBio; o localizador de UC só aparece com interseção federal. Estados e biomas usam IBGE 2025, com cache persistente (~27 MiB na primeira obtenção), e são entregues em `05_qgis/contexto`. A localização de estados considera geometria original; a simplificação serve somente ao desenho regional.
-
-## Restrições viárias e protocolo (v1.0.0)
-
-Use arquivos/camadas `estradas_pavimentadas`, `estradas_terra` e `trilhas_preexistentes`. Flags `usar_*`: NULL detecta, TRUE exige, FALSE somente exibe. No perfil campestre, candidatos precisam admitir um segmento N/L/S/O a pelo menos 100/50/5 m das fontes habilitadas. A grade e o denominador percentual são preservados; as cotas usam apenas candidatos disponíveis. Linhas usam eixo + metade de `largura_m` quando informada; polígonos usam a borda. Nomes antigos exigem mapeamento explícito.
-
-O perfil Ilha não aplica os afastamentos campestres. Com `parametros_protocolo=NULL`, usa `padrao_ilha`: transecto 25 m, grade 30 × 30 m; referência experimental de 30 m entre linhas e tentativas N/L/S/O do piloto Noronha. Essas referências não são regras definitivas nem uma verificação automática da implantação. A lista `parametros_protocolo` permite sobrescrever os valores. O perfil personalizado exige também direções e distâncias próprias. Vias são auditadas em `restricoes_viarias.json` e CSVs de pontos/direções; ausência de vetor não equivale à ausência de obstáculo.
-
-Legendas dos localizadores acompanham os biomas efetivamente representados; fragmentos abaixo de `localizador_bioma_min_mm2` (padrão 0,5 mm² no papel) são suprimidos somente nessa representação.
-
-## Área pequena / seleção personalizada
-
-`perfil` define o protocolo; `modo` define planejar/montar/expandir. A política adaptável vale para todos os perfis e tamanhos de AE, dentro ou fora de UC. `estratificar_vegetacao=FALSE` desliga cotas por formação; nos perfis campestre/ilha, mantém o filtro de elegibilidade. No personalizado, desliga também esse filtro: MapBiomas fica informativo, e toda a AE pode participar. Falta parcial reduz o atendimento e gera ocorrências; ausência total de candidatos elegíveis conhecidos bloqueia. Dados inválidos, falhas de fontes obrigatórias e conflitos históricos não são tratados como simples falta de capacidade.
-
-Exemplo sem regras viárias: `parametros_protocolo=list(transecto_m=50,grade_m=c(100,100),direcoes=character(),distancias_viarias_m=numeric())`. Não equivale a cumprir o procedimento campestre. A grade/IDs e as restrições viárias explicitamente ativadas permanecem preservados.
-
-## Piloto Ilha — Noronha (v1.0.0)
-
-O padrão dimensional Ilha foi baseado no pré-projeto Noronha de setembro/2026. Quantidades (60/120), alocação por AE, prioridades, sequência de consulta e quatro pontos complementares são específicos do piloto: use montar para preservá-los. Não se reproduzem apenas com uma semente ou percentuais globais. Categorias restaurada/degradada são condições de manejo; não equivalem automaticamente a formações vegetacionais.
-
-`contexto_uc="componentes_com_AE"` inclui componentes completos das UCs que intersectam as AEs no Sentinel e no localizador de UC; não recorta por 500 m. Os limites oficiais completos continuam disponíveis no projeto e definem a origem da grade quando ela é criada. `"integral"` inclui também setores remotos, podendo exigir volume muito maior. Veja contexto_uc.json e contexto_imagens.gpkg.
-
-Camadas de aves do piloto são referências de planejamento, não UAs instaladas de plantas. Nomes: aves_transectos, aves_Pha_lep, aves_Sul_dac, aves_Sul_sul, AE_com_aves e AE_comuns. O manifesto identifica seus papéis como adicional. grid_id fornecido liga os códigos de exibição entre grade e PAs, preservando os identificadores originais.
-
-Na consulta de homologação Noronha, MapBiomas não forneceu classes válidas nos PAs. A montagem preserva o planejamento fornecido; para planejar novos pontos, forneça classificação local confirmada. Pendências são registradas por ponto, sem apagar classificações válidas do lote.
-
 ## Autoria, licença e citação
 
 Autoria e coordenação: **Danilo V. Corrêa**. Código sob [GNU GPL v3](LICENSE), preservada do projeto de origem. As fontes e condições de uso das bases cartográficas e imagens são próprias dos respectivos provedores; a licença do código não as substitui. Marcas institucionais são mantidas como identificação de origem.
 
-Citação sugerida: CORRÊA, Danilo V. *Monitora Campestre Savânico - Alvo Global - Planejamento e Desenho Amostral, Cartografia e navegação em campo*. Versão 1.0.1. GitHub, 2026. https://github.com/danilovcorrea/Monitora-Planejamento-Amostral/releases/tag/v1.0.1.
+Citação sugerida: CORRÊA, Danilo V. *Monitora Campestre Savânico - Alvo Global - Planejamento e Desenho Amostral, Cartografia e navegação em campo*. Versão 1.1.0. GitHub, 2026. https://github.com/danilovcorrea/Monitora-Planejamento-Amostral/releases/tag/v1.1.0.
+
+## Validação desta versão
+
+16 suítes legadas aprovadas; 37 verificações de perfis no Linux e no Rscript 4.6.0 Windows; 13 verificações novas de integração. A AE_adarquia real, com grade de 10 m, produziu 170 candidatos, 34 prioritários e 68 alternativos no teste de seleção. Integrações completas utilizaram fontes sintéticas locais. Não houve novo ensaio da interface RStudio ou celular nesta rodada. Evidências em [publicação](validacao/publicacao_v1.1.0.json).

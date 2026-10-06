@@ -1,5 +1,5 @@
 # Monitora Campestre Savânico - Alvo Global - Planejamento e Desenho Amostral, Cartografia e navegação em campo
-# Candidata 1.1.0-rc1 — perfis, ajustes unificados e decisões auditáveis, 06/10/2026.
+# Versão 1.1.0 — perfis, ajustes unificados e decisões auditáveis, 06/10/2026.
 # Autoria e coordenação: Danilo V. Corrêa. Licença GPL-3.0 (arquivo LICENSE).
 # Planejamento amostral, projetos QGIS/QField, cartografia e exportações.
 # Manual: https://danilovcorrea.github.io/Monitora-Planejamento-Amostral/
@@ -1772,7 +1772,7 @@ mq_report <- function(root,c,stages,status,notes,inventory) {
   cfgfile<-file.path(r,'configuracao_efetiva.csv')
   cfghtml<-if(file.exists(cfgfile)){d<-data.table::fread(cfgfile);paste0('<h2>Configuração efetiva e orientação</h2><table><tr>',paste0('<th>',e(names(d)),'</th>',collapse=''),'</tr>',paste(apply(d,1,function(v)paste0('<tr>',paste0('<td>',e(v),'</td>',collapse=''),'</tr>')),collapse=''),'</table>')}else ''
   trs<-apply(stages,1,function(v)paste0('<tr>',paste0('<td>',e(v),'</td>',collapse=''),'</tr>'))
-  txt<-c('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Relatório de execução — Monitora Planejamento Amostral</title><style>body{font:16px sans-serif;max-width:1100px;margin:40px auto;line-height:1.5;padding:0 20px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:8px;text-align:left}h1{color:#165c46}</style>',paste0('<h1>',e(c$projeto),'</h1><p>Candidata 1.1.0-rc1 · ',e(status),'</p>'),'<p>Produto de planejamento e navegação. Homologação automática não substitui verificação em QField no aparelho, em modo avião, nem aplicação do roteiro em campo.</p>',paste0('<ul>',paste0('<li>',e(notes),'</li>',collapse=''),'</ul>'),paste0('<table><thead><tr>',paste0('<th>',e(names(stages)),'</th>',collapse=''),'</tr></thead><tbody>',paste(trs,collapse=''),'</tbody></table>'),if(file.exists(file.path(r,'mapa_planejamento.png'))) '<p><img src="mapa_planejamento.png" alt="Visão geral das áreas e pontos" style="width:100%"></p>' else '', cfghtml, '<p>Detalhes: configuracao_efetiva.csv; diagnostico_grade.json; cotas_solicitadas.csv, cotas_realizadas.csv, alocacao_combinacoes.csv, solucao_cotas.json, fontes_estratos.json (quando habilitadas); configuracao.json; consulta_uc.json; referencia_grade.json e cadastro_grade.gpkg (planejamento/expansão); camadas.csv; imagens.csv; legenda/fonte MapBiomas; diagnosticos/; fontes_e_checksums.csv; manifesto.csv.</p></html>')
+  txt<-c('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Relatório de execução — Monitora Planejamento Amostral</title><style>body{font:16px sans-serif;max-width:1100px;margin:40px auto;line-height:1.5;padding:0 20px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:8px;text-align:left}h1{color:#165c46}</style>',paste0('<h1>',e(c$projeto),'</h1><p>Versão 1.1.0 · ',e(status),'</p>'),'<p>Produto de planejamento e navegação. Homologação automática não substitui verificação em QField no aparelho, em modo avião, nem aplicação do roteiro em campo.</p>',paste0('<ul>',paste0('<li>',e(notes),'</li>',collapse=''),'</ul>'),paste0('<table><thead><tr>',paste0('<th>',e(names(stages)),'</th>',collapse=''),'</tr></thead><tbody>',paste(trs,collapse=''),'</tbody></table>'),if(file.exists(file.path(r,'mapa_planejamento.png'))) '<p><img src="mapa_planejamento.png" alt="Visão geral das áreas e pontos" style="width:100%"></p>' else '', cfghtml, '<p>Detalhes: configuracao_efetiva.csv; diagnostico_grade.json; cotas_solicitadas.csv, cotas_realizadas.csv, alocacao_combinacoes.csv, solucao_cotas.json, fontes_estratos.json (quando habilitadas); configuracao.json; consulta_uc.json; referencia_grade.json e cadastro_grade.gpkg (planejamento/expansão); camadas.csv; imagens.csv; legenda/fonte MapBiomas; diagnosticos/; fontes_e_checksums.csv; manifesto.csv.</p></html>')
   writeLines(enc2utf8(txt),file.path(r,'relatorio_execucao.html'),useBytes=TRUE)
 }
 
@@ -1945,7 +1945,7 @@ monitora_planejamento_amostral <- function(config=MQ_CONFIG) {
     unlink(scratch,recursive=TRUE)
     fs<-list.files(root,recursive=TRUE,full.names=TRUE);fs<-fs[!file.info(fs)$isdir]
     mq_csv(data.frame(arquivo=substring(fs,nchar(root)+2),bytes=file.info(fs)$size,sha256=vapply(fs,mq_hash,character(1))),file.path(report,'manifesto.csv'))
-    mq_json(list(status=status,modo=mode,segundos=round(proc.time()[3]-t0,2),versao='1.1.0-rc1'),file.path(report,'resultado.json'))
+    mq_json(list(status=status,modo=mode,segundos=round(proc.time()[3]-t0,2),versao='1.1.0'),file.path(report,'resultado.json'))
     if(file.exists(final)||!file.rename(root,final))mq_stop('Falha ao promover pacote; construção preservada.')
     message('Concluído: ',final);list(pasta=final,status=status,modo=mode)
   },error=function(e){

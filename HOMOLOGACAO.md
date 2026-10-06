@@ -1,3 +1,17 @@
+# Publicação 1.1.0 — 06/10/2026
+
+Publicação da candidata 1.1.0-rc1, commit 4619842, autorizada pelo usuário: “publique”.
+Preserva 129 funções, configuração, pacotes e recursos, exceto identificação de versão.
+Manual HTML/PDF e README atualizados. Evidências: validacao/publicacao_v1.1.0.json.
+
+16 suítes legadas aprovadas; 37 verificações de perfis no Linux e no Rscript 4.6.0 Windows;
+13 verificações novas de integração. AE_adarquia real: 170 vértices, 34 prioritários e
+68 alternativos com grade de 10 m. Integrações completas utilizam fontes sintéticas locais.
+Não foi realizado novo ensaio da interface RStudio nem teste físico em celular nesta rodada.
+As limitações de verificação da implantação em campo permanecem documentadas.
+
+## Registros anteriores
+
 # Publicação 1.0.2 — 05/10/2026
 
 Promove a candidata 1.0.2-rc1, commit 6765533, após homologação local no RStudio
